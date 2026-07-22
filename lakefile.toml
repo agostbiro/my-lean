@@ -1,0 +1,19 @@
+name = "my-lean"
+version = "0.1.0"
+defaultTargets = ["TheoryOfComputation", "FunctionalProgramming"]
+
+# Run `lake lint` to lint both libraries with Batteries.
+lintDriver = "batteries/runLinter"
+
+[[require]]
+name = "batteries"
+git = "https://github.com/leanprover-community/batteries"
+rev = "v4.32.0"
+
+[[lean_lib]]
+name = "TheoryOfComputation"
+srcDir = "theory-of-computation"
+
+[[lean_lib]]
+name = "FunctionalProgramming"
+srcDir = "functional-programming"
