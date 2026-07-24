@@ -10,11 +10,6 @@ def myLast? {α: Type} (xs : List α) : Option α :=
   | [x] => some x
   | _head :: xs => myLast? xs
 
-#eval myLast? (α := Nat) []
-#eval myLast? (α := Nat) [1]
-#eval myLast? (α := Nat) [1, 2]
-#eval myLast? (α := Nat) [1, 2, 3]
-
 /-- Spec: `myLast?` agrees with the standard library's `List.getLast?`. -/
 theorem myLast?_eq_getLast? (xs : List α) : myLast? xs = xs.getLast? := by
   -- Use the induction principle Lean generated from `myLast?`'s own match, so the
