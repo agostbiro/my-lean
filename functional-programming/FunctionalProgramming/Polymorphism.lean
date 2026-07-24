@@ -2,8 +2,10 @@ import Batteries
 
 namespace FunctionalProgramming
 
-/-- Solutions to exercises from https://lean-lang.org/functional_programming_in_lean/Getting-to-Know-Lean/Polymorphism -/
+-- Solutions to exercises from
+-- https://lean-lang.org/functional_programming_in_lean/Getting-to-Know-Lean/Polymorphism 
 
+/-- 1. Write a function to find the last entry in a list. It should return an Option. -/
 def myLast? {α: Type} (xs : List α) : Option α :=
   match xs with
   | [] => none
@@ -31,6 +33,23 @@ theorem myLast?_eq_getLast? (xs : List α) : myLast? xs = xs.getLast? := by
     -- We can use the library lemma `(a :: b :: l).getLast? = (b :: l).getLast?` for this.
     rw [List.getLast?_cons_cons]
     exact induction_hypothesis
+
+/-- 2. Write a function that finds the first entry in a list that satisfies a
+given predicate. Start the definition with def List.findFirst? {α : Type}
+(xs : List α) (predicate : α → Bool) : Option α := …. -/
+def List.findFirst? {α : Type} (xs : List α) (predicate : α → Bool) : Option α :=
+  match xs with
+  | [] => none
+  | head :: tail => if predicate head then some head else List.findFirst? tail predicate
+
+/-- Spec: `List.findFirst?` agrees with the standard library's `List.find?`. -/
+theorem findFirst?_eq_find? (xs: List a) (predicate : a → Bool) :
+    List.findFirst? xs predicate = xs.find? predicate := by 
+  induction xs using List.findFirst?.induct predicate with
+  | case1 => rfl
+  | case2 head tail head_matches => simp [List.findFirst?, List.find?, head_matches]
+  | case3 head tail head_doesnt_match induction_hypothesis => simp [List.findFirst?, List.find?, head_doesnt_match, induction_hypothesis]
+
 
 end FunctionalProgramming
 
