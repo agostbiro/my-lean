@@ -50,6 +50,11 @@ theorem findFirst?_eq_find? (xs: List a) (predicate : a → Bool) :
   | case2 head tail head_matches => simp [List.findFirst?, List.find?, head_matches]
   | case3 head tail head_doesnt_match induction_hypothesis => simp [List.findFirst?, List.find?, head_doesnt_match, induction_hypothesis]
 
+/-- Write a function Prod.switch that switches the two fields in a pair for each other. Start the definition with def Prod.switch {α β : Type} (pair : α × β) : β × α := …. -/
+def Prod.switch {α β : Type} (pair : α × β) : β × α := 
+  (pair.snd, pair.fst)
+
+theorem switch_eq_swap {α β : Type} (pair: α × β) : Prod.switch pair = pair.swap := rfl 
 
 end FunctionalProgramming
 
