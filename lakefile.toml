@@ -10,6 +10,13 @@ name = "batteries"
 git = "https://github.com/leanprover-community/batteries"
 rev = "v4.32.0"
 
+# Mathlib v4.32.0 pins the same Batteries revision as the require above, so the
+# two dependencies agree. `TheoryOfComputation` uses its `DFA` / `Language` API.
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4"
+rev = "v4.32.0"
+
 [[lean_lib]]
 name = "TheoryOfComputation"
 srcDir = "theory-of-computation"

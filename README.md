@@ -15,6 +15,11 @@ in one place.
 
 Both libraries share [Batteries](https://github.com/leanprover-community/batteries),
 pinned to `v4.32.0` to match `lean-toolchain`, and use its linter.
+`theory-of-computation/` additionally depends on
+[Mathlib](https://github.com/leanprover-community/mathlib4) (also `v4.32.0`, which
+pins the same Batteries revision) for its automata and formal language API. After
+cloning or running `lake update`, fetch the prebuilt Mathlib artifacts with
+`lake exe cache get` — otherwise the first build compiles Mathlib from source.
 
 For quick throwaway experiments, create `scratch.lean` in the repo root — it's
 gitignored and checked live by the Lean editor extension (not part of any build).
