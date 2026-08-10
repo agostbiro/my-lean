@@ -59,5 +59,40 @@ def Prod.switch {α β : Type} (pair : α × β) : β × α :=
 
 theorem switch_eq_swap {α β : Type} (pair : α × β) : Prod.switch pair = pair.swap := rfl
 
-end FunctionalProgramming
+/-- Using the analogy between types and arithmetic, write a function that
+distributes products over sums. In other words, it should have type
+α × (β ⊕ γ) → (α × β) ⊕ (α × γ). -/
+def distributeProduct {α β γ : Type} (input : α × (β ⊕ γ)) : (α × β) ⊕ (α × γ) :=
+  match input with
+  | Prod.mk a (Sum.inl b) => Sum.inl (Prod.mk a b)
+  | Prod.mk a (Sum.inr c) => Sum.inr (Prod.mk a c)
 
+/-- The inverse of `distributeProduct`, used to show the two types hold the same
+information. -/
+def undistributeProduct {α β γ : Type} : (α × β) ⊕ (α × γ) → α × (β ⊕ γ)
+  | Sum.inl (a, (b : β)) => (a, Sum.inl b)
+  | Sum.inr (a, (c : γ)) => (a, Sum.inr c)
+
+/-- Verify `distributeProduct` by proving that it's the inverse of `undistributeProduct`. -/
+theorem undistribute_distribute {α β γ : Type} (input : α × (β ⊕ γ)) :
+    undistributeProduct (distributeProduct input) = input := by
+  match input with
+  | (_, Sum.inl _) => rfl
+  | (_, Sum.inr _) => rfl
+
+/-- Verify `undistributeProduct` by proving that it's the inverse of `distributeProduct`. -/
+theorem distribute_undistribute {α β γ : Type} (input : (α × β) ⊕ (α × γ)) :
+    distributeProduct (undistributeProduct input) = input := by
+  match input with
+  | Sum.inl (_, _) => rfl
+  | Sum.inr (_, _) => rfl
+
+/-- Whichever side of the sum we end up on, the first component is carried over
+unchanged. -/
+theorem distribute_fst {α β γ : Type} (input : α × (β ⊕ γ)) :
+    (distributeProduct input).elim Prod.fst Prod.fst = input.fst := by
+  match input with
+  | (_, Sum.inl _) => rfl
+  | (_, Sum.inr _) => rfl
+
+end FunctionalProgramming
