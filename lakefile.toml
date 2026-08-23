@@ -1,8 +1,8 @@
 name = "my-lean"
 version = "0.1.0"
-defaultTargets = ["TheoryOfComputation", "FunctionalProgramming"]
+defaultTargets = ["TheoryOfComputation", "FunctionalProgramming", "Misc"]
 
-# Run `lake lint` to lint both libraries with Batteries.
+# Run `lake lint` to lint all libraries with Batteries.
 lintDriver = "batteries/runLinter"
 
 [[require]]
@@ -11,7 +11,8 @@ git = "https://github.com/leanprover-community/batteries"
 rev = "v4.32.0"
 
 # Mathlib v4.32.0 pins the same Batteries revision as the require above, so the
-# two dependencies agree. `TheoryOfComputation` uses its `DFA` / `Language` API.
+# two dependencies agree. `TheoryOfComputation` uses its `DFA` / `Language` API,
+# and `Misc` uses its number theory API.
 [[require]]
 name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4"
@@ -24,3 +25,7 @@ srcDir = "theory-of-computation"
 [[lean_lib]]
 name = "FunctionalProgramming"
 srcDir = "functional-programming"
+
+[[lean_lib]]
+name = "Misc"
+srcDir = "misc"
