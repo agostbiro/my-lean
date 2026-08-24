@@ -43,7 +43,7 @@ The pieces below line up with the picture:
 
 The automaton consumes columns least significant bit first, so everything about it is
 stated in the `valueLE` convention. Unfolding `valueBE` converts between the two
-conventions, once, in `carryDFA_accepts` (in `Proof.lean`).
+conventions, once, in `adderDFA_accepts` (in `Proof.lean`).
 -/
 
 /-- The states of the DFA for `B^R`.
@@ -81,7 +81,7 @@ Carries flow from the low columns towards the high ones, so only in that directi
 next state a function of the current one. `start` is `carry false` because nothing carries
 into the least significant column, and `carry false` is also the only accepting state because
 a carry out of the most significant column would be an overflow. -/
-def carryDFA : DFA Sigma3 DfaState where
+def adderDFA : DFA Sigma3 DfaState where
   step := dfaStep
   start := .carry false
   accept := {.carry false}
