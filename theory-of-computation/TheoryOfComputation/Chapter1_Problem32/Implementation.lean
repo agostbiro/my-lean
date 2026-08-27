@@ -104,4 +104,16 @@ example : dfaStep (.carry true) (false, false, true) = .carry false := by decide
 example : dfaStep (.carry false) (false, false, true) = .dead := by decide
 example : dfaStep .dead (false, false, false) = .dead := by decide
 
+/-! Check the examples from the problem -/
+
+example :
+    adderDFA.evalFrom (.carry false)
+      [(true, false, true), (false, false, true)] = .dead := by
+  decide
+
+example :
+    adderDFA.evalFrom (.carry false)
+      [(true, true, false), (true, false, false), (false, false, true)] = .carry false := by
+  decide
+
 end TheoryOfComputation.Chapter1.Problem32
