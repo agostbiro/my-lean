@@ -8,7 +8,8 @@ A monorepo containing my personal Lean projects.
 | ------------------------- |  ------------------------------ |
 | `theory-of-computation/`  | Theory of computation exercises |
 | `functional-programming/` | Functional programming exercises                |
-| `misc/`                   | Odds and ends                   |
+| `distsys/`                | Distributed systems notes & exercises  |
+| `misc/`                   | Suff that doesn't fit above                   |
 
 
 The shared package keeps the toolchain, dependency lockfile, and build commands
