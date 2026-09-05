@@ -25,7 +25,7 @@ But
 ⎣ 1 ⎦⎣ 1 ⎦
 
 This file is the specification only: the alphabet `Σ₃`, the language `B`, the
-row extractors and value readers `B` is stated with, and a sanity check that
+row readers `B` is stated with, and a sanity check that
 `B` agrees with an independent second translation of the problem statement.
 The DFA that recognizes `B.reverse` is in `Implementation.lean`, and its
 correctness proof is in `Proof.lean`.
@@ -57,22 +57,43 @@ def row2 (w : List Sigma3) : List Bool := w.map fun (_, y, _) => y
 /-- The bottom row of a word: the third bit of every column. -/
 def row3 (w : List Sigma3) : List Bool := w.map fun (_, _, z) => z
 
+/-- The top row of a word read least significant bit first. -/
+def row1LE (w : List Sigma3) : Nat := valueLE (row1 w)
+
+/-- The middle row of a word read least significant bit first. -/
+def row2LE (w : List Sigma3) : Nat := valueLE (row2 w)
+
+/-- The bottom row of a word read least significant bit first. -/
+def row3LE (w : List Sigma3) : Nat := valueLE (row3 w)
+
+/-- The top row of a word read most significant bit first. -/
+def row1BE (w : List Sigma3) : Nat := valueBE (row1 w)
+
+/-- The middle row of a word read most significant bit first. -/
+def row2BE (w : List Sigma3) : Nat := valueBE (row2 w)
+
+/-- The bottom row of a word read most significant bit first. -/
+def row3BE (w : List Sigma3) : Nat := valueBE (row3 w)
+
 /-- The language `B` of the problem: words whose bottom row is the sum of the top two rows.
 
 Note that all three rows have equal length by definition (they're extracted from the same list). -/
 def B : Language Sigma3 :=
-  { wBE | valueBE (row3 wBE) = valueBE (row1 wBE) + valueBE (row2 wBE) }
+  { wBE | row3BE wBE = row1BE wBE + row2BE wBE }
 
 /-- Helper to avoid unfolding manually in subsequent proofs. -/
 lemma mem_B_iff (wBE : List Sigma3) :
-    wBE ∈ B ↔ valueBE (row3 wBE) = valueBE (row1 wBE) + valueBE (row2 wBE) := Iff.rfl
+    wBE ∈ B ↔ row3BE wBE = row1BE wBE + row2BE wBE := Iff.rfl
 
 /-! ### Rewriting rules for rows
 
 Peeling the leading column off a word peels the leading bit off each of its rows, and reversing
 a word reverses each of its rows. Both facts hold by computation, but they are needed as
 rewrite rules (rather than by unfolding `row1`/`row2`/`row3`) so that the proofs below can keep
-talking about `row1 columns` instead of an unfolded `List.map`. -/
+talking about `row1 columns` instead of an unfolded `List.map`. The same two facts are then
+restated for the row readers: peeling a column off a word splits the low bit off each row's
+value, and reading a row of the reversed word most significant bit first is reading the row of
+the original word least significant bit first. -/
 
 /-- Peeling a column off a word peels the leading bit off its top row. -/
 @[simp] lemma row1_cons (x y z : Bool) (columns : List Sigma3) :
@@ -97,6 +118,36 @@ talking about `row1 columns` instead of an unfolded `List.map`. -/
 /-- Reversing a word reverses its bottom row. -/
 @[simp] lemma row3_reverse (w : List Sigma3) : row3 w.reverse = (row3 w).reverse := by
   simp [row3]
+
+/-- Peeling a column off a word: the top row's value is the column's top bit plus twice the
+value of the rest of the row. -/
+@[simp] lemma row1LE_cons (x y z : Bool) (columns : List Sigma3) :
+    row1LE ((x, y, z) :: columns) = x.toNat + 2 * row1LE columns := rfl
+
+/-- Peeling a column off a word: the middle row's value is the column's middle bit plus twice
+the value of the rest of the row. -/
+@[simp] lemma row2LE_cons (x y z : Bool) (columns : List Sigma3) :
+    row2LE ((x, y, z) :: columns) = y.toNat + 2 * row2LE columns := rfl
+
+/-- Peeling a column off a word: the bottom row's value is the column's bottom bit plus twice
+the value of the rest of the row. -/
+@[simp] lemma row3LE_cons (x y z : Bool) (columns : List Sigma3) :
+    row3LE ((x, y, z) :: columns) = z.toNat + 2 * row3LE columns := rfl
+
+/-- Reading the top row of a reversed word most significant bit first is reading the top row
+of the word least significant bit first. -/
+@[simp] lemma row1BE_reverse (w : List Sigma3) : row1BE w.reverse = row1LE w := by
+  simp [row1BE, row1LE, valueBE]
+
+/-- Reading the middle row of a reversed word most significant bit first is reading the middle
+row of the word least significant bit first. -/
+@[simp] lemma row2BE_reverse (w : List Sigma3) : row2BE w.reverse = row2LE w := by
+  simp [row2BE, row2LE, valueBE]
+
+/-- Reading the bottom row of a reversed word most significant bit first is reading the bottom
+row of the word least significant bit first. -/
+@[simp] lemma row3BE_reverse (w : List Sigma3) : row3BE w.reverse = row3LE w := by
+  simp [row3BE, row3LE, valueBE]
 
 /-! ### The examples from the problem statement
 
@@ -210,7 +261,7 @@ The bounds are `B`'s implicit no-overflow rule made explicit: only sums represen
 theorem encode_mem_B_iff {n : Nat} (a b c : Nat)
     (ha : a < 2 ^ n) (hb : b < 2 ^ n) (hc : c < 2 ^ n) :
     encode n a b c ∈ B ↔ c = a + b := by
-  rw [mem_B_iff, row1_encode, row2_encode, row3_encode,
+  rw [mem_B_iff, row1BE, row2BE, row3BE, row1_encode, row2_encode, row3_encode,
     valueBE_bitsBE ha, valueBE_bitsBE hb, valueBE_bitsBE hc]
 
 /-! ### The check leaves no word out
@@ -257,14 +308,14 @@ lemma testBit_valueBE {bs : List Bool} {n i : Nat} (hn : bs.length = n) (h : i <
 /-- Every word is the encoding of the three numbers its own rows spell out. Together with
 `encode_mem_B_iff` this makes the sanity check exhaustive: no word of `Σ₃*` escapes it. -/
 theorem encode_rows (w : List Sigma3) :
-    encode w.length (valueBE (row1 w)) (valueBE (row2 w)) (valueBE (row3 w)) = w := by
+    encode w.length (row1BE w) (row2BE w) (row3BE w) = w := by
   -- Both sides have length `|w|`, so it is enough to compare them column by column.
   apply List.ext_getElem (by simp [encode])
   intro i _ hi
   -- Column `i` of the encoding holds bit `|w| - 1 - i` of each of the three numbers, because
   -- `encode` maps over `(List.range n).reverse`, whose `i`-th entry is `n - 1 - i`.
-  simp only [encode, List.getElem_map, List.getElem_reverse, List.length_range,
-    List.getElem_range]
+  simp only [encode, row1BE, row2BE, row3BE, List.getElem_map, List.getElem_reverse,
+    List.length_range, List.getElem_range]
   -- Each of those bits is the `i`-th bit of the row it came from.
   rw [testBit_valueBE (by simp [row1]) hi, testBit_valueBE (by simp [row2]) hi,
     testBit_valueBE (by simp [row3]) hi]

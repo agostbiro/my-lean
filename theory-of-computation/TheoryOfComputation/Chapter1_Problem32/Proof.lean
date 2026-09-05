@@ -9,9 +9,9 @@ The language `B` is specified in `Specification.lean` and the adder DFA is built
 in `Implementation.lean`. This file proves that the DFA recognizes `B.reverse`
 (`adderDFA_accepts`), and concludes that `B` is regular (`B_isRegular`).
 
-The proof works in the `valueLE` (least significant bit first) convention the
-automaton consumes columns in. Unfolding `valueBE` converts to the `B` side's
-most significant bit first convention, once, in `adderDFA_accepts`.
+The proof works in the `rowNLE` (least significant bit first) convention the
+automaton consumes columns in. The `rowNBE_reverse` lemmas convert to the `B`
+side's most significant bit first convention, once, in `adderDFA_accepts_B_reverse`.
 -/
 
 /-- Carry step is correct arithmetically. -/
@@ -85,17 +85,17 @@ lemma low_bit_split (x y z carryIn : Bool) (a b d k : Nat) :
 -/
 lemma adderDFA_run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
     adderDFA.evalFrom (.carry carryIn) wLE = .carry carryOut ↔
-      valueLE (row1 wLE) + valueLE (row2 wLE) + carryIn.toNat
-        = valueLE (row3 wLE) + carryOut.toNat * 2 ^ wLE.length := by
+      row1LE wLE + row2LE wLE + carryIn.toNat
+        = row3LE wLE + carryOut.toNat * 2 ^ wLE.length := by
   induction wLE generalizing carryIn with
   | nil =>
     cases carryIn <;> cases carryOut <;>
-      simp [valueLE, row1, row2, row3, DFA.evalFrom]
+      simp [row1LE, row2LE, row3LE, valueLE, row1, row2, row3, DFA.evalFrom]
   | cons column columnsLE induction_hypothesis =>
     obtain ⟨x, y, z⟩ := column
     rw [evalFrom_cons_carry_iff]
     simp_rw [dfaStep_carry_iff, induction_hypothesis]
-    simp only [row1_cons, row2_cons, row3_cons, valueLE, List.length_cons, pow_succ]
+    simp only [row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
     -- This is `low_bit_split` with `k := carryOut.toNat * 2 ^ |columnsLE|`, but the two
     -- sides write the same number differently: the goal has `carryOut.toNat * (2 ^ n * 2)`
     -- (from `pow_succ`), the lemma has `2 * (carryOut.toNat * 2 ^ n)`. The `*`/`+`
@@ -104,11 +104,12 @@ lemma adderDFA_run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
     simpa [Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm,
       Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
         (low_bit_split x y z carryIn
-          (valueLE (row1 columnsLE))
-          (valueLE (row2 columnsLE))
-          (valueLE (row3 columnsLE))
+          (row1LE columnsLE)
+          (row2LE columnsLE)
+          (row3LE columnsLE)
           (carryOut.toNat * 2 ^ columnsLE.length)).symm
 
+-- TODO factor out bookkeeping
 /-- The DFA recognizes the reverse of `B` 
 
 `B.reverse = { w | w.reverse ∈ B }` -/
@@ -133,7 +134,7 @@ theorem adderDFA_accepts_B_reverse : adderDFA.accepts = B.reverse := by
     -- Replace `wLE ∈ adderDFA.accepts` with `adderDFA.evalFrom (.carry false) wLE = .carry false`
     mem_accepts_iff,
     -- Replace `adderDFA.evalFrom (.carry false) wLE = .carry false` with 
-    -- `valueLE (row1 wLE) + valueLE (row2 wLE) = valueLE (row3 wLE)`
+    -- `row1LE wLE + row2LE wLE = row3LE wLE`
     invariant,
 
     -- Then massage the right side.
@@ -141,25 +142,20 @@ theorem adderDFA_accepts_B_reverse : adderDFA.accepts = B.reverse := by
     -- Replace `wLE ∈ B.reverse` with `wLE.reverse ∈ B`.
     Language.mem_reverse,
     -- Following the exercise, we defined the `B` language as: 
-    -- `wBE ∈ B ↔ valueBE (row3 wBE) = valueBE (row1 wBE) + valueBE (row2 wBE)`.
+    -- `wBE ∈ B ↔ row3BE wBE = row1BE wBE + row2BE wBE`.
     -- Applying this definition lets us replace `wLE.reverse ∈ B` with
-    -- `valueBE (row3 wLE.reverse) = valueBE (row1 wLE.reverse) + valueBE (row2 wLE.reverse)`
+    -- `row3BE wLE.reverse = row1BE wLE.reverse + row2BE wLE.reverse`
     mem_B_iff
   ]
-  -- We have almost met the goal now, except the right side of the equation has `valueBE (row wLE.reverse)` instead of `valueLE (row wLE)`.
+  -- We have almost met the goal now, except the right side of the equation has `rowBE wLE.reverse` instead of `rowLE wLE`.
   simp only [
-    -- Push the `reverse` from the word down onto its rows, giving
-    -- `valueBE (row3 wLE).reverse = valueBE (row1 wLE).reverse + valueBE (row2 wLE).reverse`.
-    row1_reverse,
-    row2_reverse,
-    row3_reverse,
-    -- Unfold "most significant bit first" as "least significant bit first, backwards", giving
-    -- `valueLE (row3 wLE).reverse.reverse = valueLE (row1 wLE).reverse.reverse + …`.
-    valueBE,
-    -- Cancel the two reversals. Both sides now read the same three rows the same way:
-    -- `valueLE (row1 wLE) + valueLE (row2 wLE) = valueLE (row3 wLE) ↔
-    --    valueLE (row3 wLE) = valueLE (row1 wLE) + valueLE (row2 wLE)`.
-    List.reverse_reverse,
+    -- Reading a row of the reversed word most significant bit first is reading the row of the
+    -- original word least significant bit first. Both sides now read the same three rows the
+    -- same way:
+    -- `row1LE wLE + row2LE wLE = row3LE wLE ↔ row3LE wLE = row1LE wLE + row2LE wLE`.
+    row1BE_reverse,
+    row2BE_reverse,
+    row3BE_reverse,
     -- All that is left is the direction of the equation: `B` puts the sum on the right, the
     -- automaton's invariant on the left. Flipping one of them leaves `X ↔ X`, which closes the goal.
     eq_comm
