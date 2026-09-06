@@ -24,6 +24,11 @@ number theory respectively. After cloning or running `lake update`, fetch the
 prebuilt Mathlib artifacts with
 `lake exe cache get` — otherwise the first build compiles Mathlib from source.
 
+`distsys/veil-consensus/` is the exception to the shared package: it is a
+standalone Lake project on Lean v4.28.0 that depends on
+[Veil](https://github.com/verse-lab/veil), and it is not part of the root build.
+See `distsys/README.md`.
+
 For quick throwaway experiments, create `scratch.lean` in the repo root — it's
 gitignored and checked live by the Lean editor extension (not part of any build).
 

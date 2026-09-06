@@ -1,2 +1,5 @@
 -- This module serves as the root of the `DistSys` library.
 -- Import modules here that should be built as part of the library.
+--
+-- `veil-consensus/` is a standalone Lake project (Lean v4.28.0 + Veil) and is
+-- not imported here. See `README.md` in this directory.
