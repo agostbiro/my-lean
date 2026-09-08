@@ -64,14 +64,15 @@ lemma evalFrom_cons_carry_iff (x y z carryIn carryOut : Bool) (w : List Sigma3) 
   | dead => rw [evalFrom_dead]; simp
   | carry carryMid => simp
 
-/-- A binary addition equation splits into the equation for its low bit and
+/-- A binary addition equation splits into the equation for its least significant bit and
 the equation for the remaining higher bits, connected by an intermediate
 carry.
 
 This iff also covers the dead-column case of the induction for free: every term other
-than the low bits is even, so when the low bit has the wrong parity no `carryMid`
-satisfies the right-hand side — matching the run entering `dead` on the left. -/
-lemma low_bit_split (x y z carryIn : Bool) (a b d k : Nat) :
+than the least significant bits is even, so when the least significant bit has the wrong
+parity no `carryMid` satisfies the right-hand side — matching the run entering `dead` on the
+left. -/
+lemma least_significant_bit_split (x y z carryIn : Bool) (a b d k : Nat) :
     (x.toNat + 2 * a) + (y.toNat + 2 * b) + carryIn.toNat
         = (z.toNat + 2 * d) + 2 * k ↔
       ∃ carryMid : Bool,
@@ -96,14 +97,15 @@ lemma adderDFA_run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
     rw [evalFrom_cons_carry_iff]
     simp_rw [dfaStep_carry_iff, induction_hypothesis]
     simp only [row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
-    -- This is `low_bit_split` with `k := carryOut.toNat * 2 ^ |columnsLE|`, but the two
-    -- sides write the same number differently: the goal has `carryOut.toNat * (2 ^ n * 2)`
-    -- (from `pow_succ`), the lemma has `2 * (carryOut.toNat * 2 ^ n)`. The `*`/`+`
-    -- commutativity and associativity lemmas below let `simpa` match them up.
+    -- This is `least_significant_bit_split` with `k := carryOut.toNat * 2 ^ |columnsLE|`,
+    -- but the two sides write the same number differently: the goal has
+    -- `carryOut.toNat * (2 ^ n * 2)` (from `pow_succ`), the lemma has
+    -- `2 * (carryOut.toNat * 2 ^ n)`. The `*`/`+` commutativity and associativity lemmas
+    -- below let `simpa` match them up.
     -- `omega` can't finish instead: it doesn't handle the `∃ carryMid`.
     simpa [Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm,
       Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
-        (low_bit_split x y z carryIn
+        (least_significant_bit_split x y z carryIn
           (row1LE columnsLE)
           (row2LE columnsLE)
           (row3LE columnsLE)

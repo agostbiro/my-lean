@@ -91,9 +91,9 @@ Peeling the leading column off a word peels the leading bit off each of its rows
 a word reverses each of its rows. Both facts hold by computation, but they are needed as
 rewrite rules (rather than by unfolding `row1`/`row2`/`row3`) so that the proofs below can keep
 talking about `row1 columns` instead of an unfolded `List.map`. The same two facts are then
-restated for the row readers: peeling a column off a word splits the low bit off each row's
-value, and reading a row of the reversed word most significant bit first is reading the row of
-the original word least significant bit first. -/
+restated for the row readers: peeling a column off a word splits the least significant bit off
+each row's value, and reading a row of the reversed word most significant bit first is reading
+the row of the original word least significant bit first. -/
 
 /-- Peeling a column off a word peels the leading bit off its top row. -/
 @[simp] lemma row1_cons (x y z : Bool) (columns : List Sigma3) :
@@ -231,7 +231,7 @@ lemma valueLE_range_testBit {n a : Nat} (h : a < 2 ^ n) :
     simp only [pow_zero, Nat.lt_one_iff] at h
     simp [h, valueLE]
   | succ n induction_hypothesis =>
-    -- Halving strips the low bit: `a / 2` fits in `n` bits.
+    -- Halving strips the least significant bit: `a / 2` fits in `n` bits.
     have hdiv : a / 2 < 2 ^ n := by
       rw [pow_succ] at h
       omega
