@@ -44,7 +44,7 @@ lemma dfaStep_carry_iff (x y z carryIn carryOut : Bool) :
 
 /-- `dead` is a sink: once a column has contradicted the addition, no suffix recovers.
 
-`adderDFA_run_invariant` peels the leading column, which is the run's first step, so the case
+`run_invariant` peels the leading column, which is the run's first step, so the case
 where that step dies leaves a whole run still to evaluate. This lemma evaluates it. -/
 lemma evalFrom_dead (w : List Sigma3) : adderDFA.evalFrom .dead w = .dead := by
   induction w with
@@ -55,7 +55,7 @@ lemma evalFrom_dead (w : List Sigma3) : adderDFA.evalFrom .dead w = .dead := by
 /-- A run over a nonempty word ends in a carry state exactly when its first
 column produces an intermediate carry and the rest of the run produces the
 final carry. -/
-lemma adderDFA_split_run (x y z carryIn carryOut : Bool) (w : List Sigma3) :
+lemma split_run (x y z carryIn carryOut : Bool) (w : List Sigma3) :
     adderDFA.evalFrom (.carry carryIn) ((x, y, z) :: w) = .carry carryOut ↔
       ∃ carryMid, dfaStep (.carry carryIn) (x, y, z) = .carry carryMid ∧
         adderDFA.evalFrom (.carry carryMid) w = .carry carryOut := by
@@ -84,7 +84,7 @@ lemma least_significant_bit_split (x y z carryIn : Bool) (a b d k : Nat) :
   `carryIn` lands in state carry `carryOut` when the equation holds:
   `row1 + row2 + carryIn = row3 + carryOut · 2^|wLE|`.
 -/
-lemma adderDFA_run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
+lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
     adderDFA.evalFrom (.carry carryIn) wLE = .carry carryOut ↔
       row1LE wLE + row2LE wLE + carryIn.toNat
         = row3LE wLE + carryOut.toNat * 2 ^ wLE.length := by
@@ -94,7 +94,7 @@ lemma adderDFA_run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
       simp [row1LE, row2LE, row3LE, valueLE, row1, row2, row3, DFA.evalFrom]
   | cons column columnsLE induction_hypothesis =>
     obtain ⟨x, y, z⟩ := column
-    rw [adderDFA_split_run]
+    rw [split_run]
     simp_rw [dfaStep_carry_iff, induction_hypothesis]
     simp only [row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
     -- This is `least_significant_bit_split` with `k := carryOut.toNat * 2 ^ |columnsLE|`,
@@ -118,12 +118,12 @@ lemma adderDFA_run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
 theorem adderDFA_accepts_B_reverse : adderDFA.accepts = B.reverse := by
   -- Change the goal from "these two languages are the same" to "for an arbitrary word, the DFA accepts it iff it's in B.reverse".
   ext wLE
-  -- `adderDFA_run_invariant` states that running the adder DFA over a little-endian word `wLE` from carry
+  -- `run_invariant` states that running the adder DFA over a little-endian word `wLE` from carry
   -- carryIn` lands in state carry `carryOut` when the equation holds:
   -- `row1 + row2 + carryIn = row3 + carryOut · 2^|wLE|`.
   -- Since we initialize it with `false, false`, the  invariant is "no carry in
   -- at the low end, no carry out at the high end".
-  have invariant := adderDFA_run_invariant wLE false false
+  have invariant := run_invariant wLE false false
   -- Since they're zero, cancel the terms involving carries from the
   -- invariant's equation which becomes `row1 + row2 = row3`.
   simp only [Bool.toNat_false, Nat.zero_mul, Nat.add_zero] at invariant
