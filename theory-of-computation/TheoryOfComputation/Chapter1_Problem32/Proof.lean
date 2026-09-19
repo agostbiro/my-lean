@@ -55,7 +55,7 @@ lemma evalFrom_dead (w : List Sigma3) : adderDFA.evalFrom .dead w = .dead := by
 /-- A run over a nonempty word ends in a carry state exactly when its first
 column produces an intermediate carry and the rest of the run produces the
 final carry. -/
-lemma evalFrom_cons_carry_iff (x y z carryIn carryOut : Bool) (w : List Sigma3) :
+lemma adderDFA_split_run (x y z carryIn carryOut : Bool) (w : List Sigma3) :
     adderDFA.evalFrom (.carry carryIn) ((x, y, z) :: w) = .carry carryOut ↔
       ∃ carryMid, dfaStep (.carry carryIn) (x, y, z) = .carry carryMid ∧
         adderDFA.evalFrom (.carry carryMid) w = .carry carryOut := by
@@ -94,7 +94,7 @@ lemma adderDFA_run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
       simp [row1LE, row2LE, row3LE, valueLE, row1, row2, row3, DFA.evalFrom]
   | cons column columnsLE induction_hypothesis =>
     obtain ⟨x, y, z⟩ := column
-    rw [evalFrom_cons_carry_iff]
+    rw [adderDFA_split_run]
     simp_rw [dfaStep_carry_iff, induction_hypothesis]
     simp only [row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
     -- This is `least_significant_bit_split` with `k := carryOut.toNat * 2 ^ |columnsLE|`,
