@@ -80,23 +80,28 @@ lemma least_significant_bit_split (x y z carryIn : Bool) (a b d k : Nat) :
         a + b + carryMid.toNat = d + k := by
   cases x <;> cases y <;> cases z <;> cases carryIn <;> simp <;> omega
 
+/-- The little-endian word `wLE` is a correct binary addition with carry `carryIn`
+entering at the low end and carry `carryOut` leaving at the high end:
+`row1 + row2 + carryIn = row3 + carryOut · 2^|wLE|`. -/
+def AddsWithCarry (wLE : List Sigma3) (carryIn carryOut : Bool) : Prop :=
+  row1LE wLE + row2LE wLE + carryIn.toNat
+    = row3LE wLE + carryOut.toNat * 2 ^ wLE.length
+
 /-- Running the adder DFA over a little-endian word `wLE` from carry
-  `carryIn` lands in state carry `carryOut` when the equation holds:
-  `row1 + row2 + carryIn = row3 + carryOut · 2^|wLE|`.
+  `carryIn` lands in state carry `carryOut` when `wLE` adds up with those carries.
 -/
 lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
     adderDFA.evalFrom (.carry carryIn) wLE = .carry carryOut ↔
-      row1LE wLE + row2LE wLE + carryIn.toNat
-        = row3LE wLE + carryOut.toNat * 2 ^ wLE.length := by
+      AddsWithCarry wLE carryIn carryOut := by
   induction wLE generalizing carryIn with
   | nil =>
     cases carryIn <;> cases carryOut <;>
-      simp [row1LE, row2LE, row3LE, valueLE, row1, row2, row3, DFA.evalFrom]
+      simp [AddsWithCarry, row1LE, row2LE, row3LE, valueLE, row1, row2, row3, DFA.evalFrom]
   | cons column columnsLE induction_hypothesis =>
     obtain ⟨x, y, z⟩ := column
     rw [split_run]
     simp_rw [dfaStep_carry_iff, induction_hypothesis]
-    simp only [row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
+    simp only [AddsWithCarry, row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
     -- This is `least_significant_bit_split` with `k := carryOut.toNat * 2 ^ |columnsLE|`,
     -- but the two sides write the same number differently: the goal has
     -- `carryOut.toNat * (2 ^ n * 2)` (from `pow_succ`), the lemma has
@@ -119,14 +124,14 @@ theorem adderDFA_accepts_B_reverse : adderDFA.accepts = B.reverse := by
   -- Change the goal from "these two languages are the same" to "for an arbitrary word, the DFA accepts it iff it's in B.reverse".
   ext wLE
   -- `run_invariant` states that running the adder DFA over a little-endian word `wLE` from carry
-  -- carryIn` lands in state carry `carryOut` when the equation holds:
+  -- `carryIn` lands in state carry `carryOut` when `AddsWithCarry wLE carryIn carryOut` holds, i.e.
   -- `row1 + row2 + carryIn = row3 + carryOut · 2^|wLE|`.
   -- Since we initialize it with `false, false`, the  invariant is "no carry in
   -- at the low end, no carry out at the high end".
   have invariant := run_invariant wLE false false
-  -- Since they're zero, cancel the terms involving carries from the
-  -- invariant's equation which becomes `row1 + row2 = row3`.
-  simp only [Bool.toNat_false, Nat.zero_mul, Nat.add_zero] at invariant
+  -- Unfold `AddsWithCarry` and, since the carries are zero, cancel the terms involving them from
+  -- the invariant's equation which becomes `row1 + row2 = row3`.
+  simp only [AddsWithCarry, Bool.toNat_false, Nat.zero_mul, Nat.add_zero] at invariant
   -- Acceptance is by definition "the run from the start state ends in `carry false`".
   have mem_accepts_iff :
       wLE ∈ adderDFA.accepts ↔ adderDFA.evalFrom (.carry false) wLE = .carry false := Iff.rfl
