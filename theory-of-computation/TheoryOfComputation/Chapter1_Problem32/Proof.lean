@@ -44,6 +44,11 @@ lemma carry_step_correct (x y z carryIn carryOut : Bool) :
     -- which after some further steps will be resolved to true.
     simp [dfaStep]
 
+/-- The step function of `adderDFA` is `dfaStep`. Lets `simp` replace `adderDFA.step` with
+`dfaStep` without unfolding the whole `adderDFA` structure. -/
+@[simp]
+lemma adderDFA_step : adderDFA.step = dfaStep := rfl
+
 /-- `dead` is a sink: once a column has contradicted the addition, no suffix recovers.
 
 `run_invariant` peels the leading column, which is the run's first step, so the case
@@ -56,21 +61,22 @@ lemma evalFrom_dead (w : List Sigma3) : adderDFA.evalFrom .dead w = .dead := by
 
 /-- Running the adder DFA over the little-endian word `wLE` from carry `carryIn` ends in
 carry `carryOut`. -/
-def RunCarries (carryIn : Bool) (wLE : List Sigma3) (carryOut : Bool) : Prop :=
+def RunEndsWithCarry (carryIn : Bool) (wLE : List Sigma3) (carryOut : Bool) : Prop :=
   adderDFA.evalFrom (.carry carryIn) wLE = .carry carryOut
 
 /-- A run over a nonempty word ends in a carry state exactly when its first
 column produces an intermediate carry and the rest of the run produces the
 final carry. -/
 lemma split_run (column : Sigma3) (columns : List Sigma3) (carryIn carryOut : Bool) :
-    RunCarries carryIn (column :: columns) carryOut ↔
+    RunEndsWithCarry carryIn (column :: columns) carryOut ↔
       ∃ carryMid,
         dfaStep (.carry carryIn) column = .carry carryMid ∧
-        RunCarries carryMid columns carryOut := by
-  change adderDFA.evalFrom (dfaStep (.carry carryIn) column) columns = .carry carryOut ↔ _
+        RunEndsWithCarry carryMid columns carryOut := by
+  -- Unfold the run and peel off its first step, so that `cases` below can split on that step.
+  simp only [RunEndsWithCarry, DFA.evalFrom_cons, adderDFA_step]
   cases dfaStep (.carry carryIn) column with
-  | dead => rw [evalFrom_dead]; simp [RunCarries]
-  | carry carryMid => simp [RunCarries]
+  | dead => rw [evalFrom_dead]; simp
+  | carry carryMid => simp
 
 /-- A binary addition equation splits into the equation for its least significant bit and
 the equation for the remaining higher bits, connected by an intermediate
@@ -91,7 +97,7 @@ lemma least_significant_bit_split (x y z carryIn : Bool) (a b d k : Nat) :
 /-- The little-endian word `wLE` is a correct binary addition with carry `carryIn`
 entering at the low end and carry `carryOut` leaving at the high end:
 `row1 + row2 + carryIn = row3 + carryOut · 2^|wLE|`. -/
-def AddsWithCarry (wLE : List Sigma3) (carryIn carryOut : Bool) : Prop :=
+def WordAddsWithCarry (wLE : List Sigma3) (carryIn carryOut : Bool) : Prop :=
   row1LE wLE + row2LE wLE + carryIn.toNat
     = row3LE wLE + carryOut.toNat * 2 ^ wLE.length
 
@@ -99,17 +105,29 @@ def AddsWithCarry (wLE : List Sigma3) (carryIn carryOut : Bool) : Prop :=
   `carryIn` lands in state carry `carryOut` when `wLE` adds up with those carries.
 -/
 lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
-    RunCarries carryIn wLE carryOut ↔ AddsWithCarry wLE carryIn carryOut := by
+    RunEndsWithCarry carryIn wLE carryOut ↔ 
+      WordAddsWithCarry wLE carryIn carryOut := by
   induction wLE generalizing carryIn with
   | nil =>
     cases carryIn <;> cases carryOut <;>
-      simp [RunCarries, AddsWithCarry, row1LE, row2LE, row3LE, valueLE, row1, row2, row3,
+      simp [RunEndsWithCarry, WordAddsWithCarry, row1LE, row2LE, row3LE, valueLE, row1, row2, row3,
         DFA.evalFrom]
   | cons column columnsLE induction_hypothesis =>
     obtain ⟨x, y, z⟩ := column
+    -- 1. On the DFA side, split the run into its first step and the run over the remaining
+    --    columns and join them with an intermediate carry.
     rw [split_run]
-    simp_rw [carry_step_correct, induction_hypothesis]
-    simp only [AddsWithCarry, row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
+    simp_rw [
+      -- 2. Turn the first step of the DFA into arithmetic. This is the adder equation for a
+      --    single column.
+      carry_step_correct,
+      -- 3. Turn the run over the remaining columns into arithmetic using the induction
+      --    hypothesis.
+      induction_hypothesis
+    ]
+    -- 4. On the arithmetic side, show that the equation for the whole word splits into the
+    --    equation for the least significant bit and the equation for the remaining bits.
+    simp only [WordAddsWithCarry, row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
     -- This is `least_significant_bit_split` with `k := carryOut.toNat * 2 ^ |columnsLE|`,
     -- but the two sides write the same number differently: the goal has
     -- `carryOut.toNat * (2 ^ n * 2)` (from `pow_succ`), the lemma has
@@ -140,9 +158,9 @@ theorem adderDFA_accepts_B_reverse : adderDFA.accepts = B.reverse := by
   have invariant := run_invariant wLE false false
   -- Unfold `AddsWithCarry` and, since the carries are zero, cancel the terms involving them from
   -- the invariant's equation which becomes `row1 + row2 = row3`.
-  simp only [AddsWithCarry, Bool.toNat_false, Nat.zero_mul, Nat.add_zero] at invariant
+  simp only [WordAddsWithCarry, Bool.toNat_false, Nat.zero_mul, Nat.add_zero] at invariant
   -- Acceptance is by definition "the run from the start state ends in `carry false`".
-  have mem_accepts_iff : wLE ∈ adderDFA.accepts ↔ RunCarries false wLE false := Iff.rfl
+  have mem_accepts_iff : wLE ∈ adderDFA.accepts ↔ RunEndsWithCarry false wLE false := Iff.rfl
   -- Remember, the goal is `wLE ∈ adderDFA.accepts ↔ wLE ∈ B.reverse`. We need to show that both sides are equal.
   rw [
     -- First we massage the left side.
