@@ -54,17 +54,23 @@ lemma evalFrom_dead (w : List Sigma3) : adderDFA.evalFrom .dead w = .dead := by
   | cons column columns induction_hypothesis =>
     simpa [DFA.evalFrom, adderDFA, dfaStep] using induction_hypothesis
 
+/-- Running the adder DFA over the little-endian word `wLE` from carry `carryIn` ends in
+carry `carryOut`. -/
+def RunCarries (carryIn : Bool) (wLE : List Sigma3) (carryOut : Bool) : Prop :=
+  adderDFA.evalFrom (.carry carryIn) wLE = .carry carryOut
+
 /-- A run over a nonempty word ends in a carry state exactly when its first
 column produces an intermediate carry and the rest of the run produces the
 final carry. -/
-lemma split_run (x y z carryIn carryOut : Bool) (w : List Sigma3) :
-    adderDFA.evalFrom (.carry carryIn) ((x, y, z) :: w) = .carry carryOut ↔
-      ∃ carryMid, dfaStep (.carry carryIn) (x, y, z) = .carry carryMid ∧
-        adderDFA.evalFrom (.carry carryMid) w = .carry carryOut := by
-  change adderDFA.evalFrom (dfaStep (.carry carryIn) (x, y, z)) w = .carry carryOut ↔ _
-  cases dfaStep (.carry carryIn) (x, y, z) with
-  | dead => rw [evalFrom_dead]; simp
-  | carry carryMid => simp
+lemma split_run (column : Sigma3) (columns : List Sigma3) (carryIn carryOut : Bool) :
+    RunCarries carryIn (column :: columns) carryOut ↔
+      ∃ carryMid,
+        dfaStep (.carry carryIn) column = .carry carryMid ∧
+        RunCarries carryMid columns carryOut := by
+  change adderDFA.evalFrom (dfaStep (.carry carryIn) column) columns = .carry carryOut ↔ _
+  cases dfaStep (.carry carryIn) column with
+  | dead => rw [evalFrom_dead]; simp [RunCarries]
+  | carry carryMid => simp [RunCarries]
 
 /-- A binary addition equation splits into the equation for its least significant bit and
 the equation for the remaining higher bits, connected by an intermediate
@@ -93,12 +99,12 @@ def AddsWithCarry (wLE : List Sigma3) (carryIn carryOut : Bool) : Prop :=
   `carryIn` lands in state carry `carryOut` when `wLE` adds up with those carries.
 -/
 lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
-    adderDFA.evalFrom (.carry carryIn) wLE = .carry carryOut ↔
-      AddsWithCarry wLE carryIn carryOut := by
+    RunCarries carryIn wLE carryOut ↔ AddsWithCarry wLE carryIn carryOut := by
   induction wLE generalizing carryIn with
   | nil =>
     cases carryIn <;> cases carryOut <;>
-      simp [AddsWithCarry, row1LE, row2LE, row3LE, valueLE, row1, row2, row3, DFA.evalFrom]
+      simp [RunCarries, AddsWithCarry, row1LE, row2LE, row3LE, valueLE, row1, row2, row3,
+        DFA.evalFrom]
   | cons column columnsLE induction_hypothesis =>
     obtain ⟨x, y, z⟩ := column
     rw [split_run]
@@ -125,8 +131,9 @@ lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
 theorem adderDFA_accepts_B_reverse : adderDFA.accepts = B.reverse := by
   -- Change the goal from "these two languages are the same" to "for an arbitrary word, the DFA accepts it iff it's in B.reverse".
   ext wLE
-  -- `run_invariant` states that running the adder DFA over a little-endian word `wLE` from carry
-  -- `carryIn` lands in state carry `carryOut` when `AddsWithCarry wLE carryIn carryOut` holds, i.e.
+  -- `run_invariant` states that `RunCarries carryIn wLE carryOut`, i.e. running the adder DFA over
+  -- a little-endian word `wLE` from carry `carryIn` lands in state carry `carryOut`, holds exactly
+  -- when `AddsWithCarry wLE carryIn carryOut` holds, i.e.
   -- `row1 + row2 + carryIn = row3 + carryOut · 2^|wLE|`.
   -- Since we initialize it with `false, false`, the  invariant is "no carry in
   -- at the low end, no carry out at the high end".
@@ -135,14 +142,13 @@ theorem adderDFA_accepts_B_reverse : adderDFA.accepts = B.reverse := by
   -- the invariant's equation which becomes `row1 + row2 = row3`.
   simp only [AddsWithCarry, Bool.toNat_false, Nat.zero_mul, Nat.add_zero] at invariant
   -- Acceptance is by definition "the run from the start state ends in `carry false`".
-  have mem_accepts_iff :
-      wLE ∈ adderDFA.accepts ↔ adderDFA.evalFrom (.carry false) wLE = .carry false := Iff.rfl
+  have mem_accepts_iff : wLE ∈ adderDFA.accepts ↔ RunCarries false wLE false := Iff.rfl
   -- Remember, the goal is `wLE ∈ adderDFA.accepts ↔ wLE ∈ B.reverse`. We need to show that both sides are equal.
   rw [
     -- First we massage the left side.
-    -- Replace `wLE ∈ adderDFA.accepts` with `adderDFA.evalFrom (.carry false) wLE = .carry false`
+    -- Replace `wLE ∈ adderDFA.accepts` with `RunCarries false wLE false`
     mem_accepts_iff,
-    -- Replace `adderDFA.evalFrom (.carry false) wLE = .carry false` with 
+    -- Replace `RunCarries false wLE false` with 
     -- `row1LE wLE + row2LE wLE = row3LE wLE`
     invariant,
 
