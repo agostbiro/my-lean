@@ -14,8 +14,10 @@ automaton consumes columns in. The `rowNBE_reverse` lemmas convert to the `B`
 side's most significant bit first convention, once, in `adderDFA_accepts_B_reverse`.
 -/
 
-/-- Carry step is correct arithmetically. -/
-lemma dfaStep_carry_iff (x y z carryIn carryOut : Bool) :
+/-- One column is a correct carry step: the step from carry `carryIn` lands in carry
+`carryOut` exactly when `x + y + carryIn = z + 2 · carryOut`, the adder equation for a
+single column. -/
+lemma carry_step_correct (x y z carryIn carryOut : Bool) :
     dfaStep (.carry carryIn) (x, y, z) = .carry carryOut ↔
       x.toNat + y.toNat + carryIn.toNat = z.toNat + 2 * carryOut.toNat := by
   -- Proof by exhaustion over the truth table that is constructed by chaining cases where each
@@ -100,7 +102,7 @@ lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
   | cons column columnsLE induction_hypothesis =>
     obtain ⟨x, y, z⟩ := column
     rw [split_run]
-    simp_rw [dfaStep_carry_iff, induction_hypothesis]
+    simp_rw [carry_step_correct, induction_hypothesis]
     simp only [AddsWithCarry, row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
     -- This is `least_significant_bit_split` with `k := carryOut.toNat * 2 ^ |columnsLE|`,
     -- but the two sides write the same number differently: the goal has
