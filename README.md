@@ -23,6 +23,11 @@ number theory respectively. After cloning or running `lake update`, fetch the
 prebuilt Mathlib artifacts with
 `lake exe cache get` — otherwise the first build compiles Mathlib from source.
 
+To have this happen automatically in new worktrees, point git at the tracked
+hooks once per clone: `git config core.hooksPath .githooks`. The
+`post-checkout` hook there runs `lake exe cache get` whenever a fresh worktree
+is created.
+
 For quick throwaway experiments, create `scratch.lean` in the repo root — it's
 gitignored and checked live by the Lean editor extension (not part of any build).
 
