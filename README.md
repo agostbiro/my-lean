@@ -24,6 +24,11 @@ number theory respectively. After cloning or running `lake update`, fetch the
 prebuilt Mathlib artifacts with
 `lake exe cache get` — otherwise the first build compiles Mathlib from source.
 
+To have this happen automatically in new worktrees, point git at the tracked
+hooks once per clone: `git config core.hooksPath .githooks`. The
+`post-checkout` hook there runs `lake exe cache get` whenever a fresh worktree
+is created.
+
 `distsys/veil-consensus/` is the exception to the shared package: it is a
 standalone Lake project on Lean v4.28.0 that depends on
 [Veil](https://github.com/verse-lab/veil), and it is not part of the root build.
