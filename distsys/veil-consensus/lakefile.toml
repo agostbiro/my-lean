@@ -1,0 +1,16 @@
+name = "veil-consensus"
+version = "0.1.0"
+defaultTargets = ["VeilConsensus"]
+
+# Veil's liveness support (`temporal` properties and the Lentil temporal proof
+# mode) exists only on the `veil-live-demo` branch, which is pinned to Lean
+# v4.28.0. That is why this is a separate Lake project and not part of the root
+# `my-lean` package (Lean v4.32.0). Pinned by commit because the branch is
+# unreleased and may move.
+[[require]]
+name = "veil"
+git = "https://github.com/verse-lab/veil"
+rev = "39fb34da03c9a4cbbe05b438ecc419489ad0cff8"
+
+[[lean_lib]]
+name = "VeilConsensus"

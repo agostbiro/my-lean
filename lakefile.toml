@@ -1,6 +1,6 @@
 name = "my-lean"
 version = "0.1.0"
-defaultTargets = ["TheoryOfComputation", "FunctionalProgramming", "Misc"]
+defaultTargets = ["TheoryOfComputation", "FunctionalProgramming", "Misc", "DistSys"]
 
 # Run `lake lint` to lint all libraries with Batteries.
 lintDriver = "batteries/runLinter"
@@ -29,3 +29,7 @@ srcDir = "functional-programming"
 [[lean_lib]]
 name = "Misc"
 srcDir = "misc"
+
+[[lean_lib]]
+name = "DistSys"
+srcDir = "distsys"

@@ -8,7 +8,8 @@ A monorepo containing my personal Lean projects.
 | ------------------------- |  ------------------------------ |
 | `theory-of-computation/`  | Theory of computation exercises |
 | `functional-programming/` | Functional programming exercises                |
-| `misc/`                   | Odds and ends                   |
+| `distsys/`                | Distributed systems notes & exercises  |
+| `misc/`                   | Suff that doesn't fit above                   |
 
 
 The shared package keeps the toolchain, dependency lockfile, and build commands
@@ -27,6 +28,11 @@ To have this happen automatically in new worktrees, point git at the tracked
 hooks once per clone: `git config core.hooksPath .githooks`. The
 `post-checkout` hook there runs `lake exe cache get` whenever a fresh worktree
 is created.
+
+`distsys/veil-consensus/` is the exception to the shared package: it is a
+standalone Lake project on Lean v4.28.0 that depends on
+[Veil](https://github.com/verse-lab/veil), and it is not part of the root build.
+See `distsys/README.md`.
 
 For quick throwaway experiments, create `scratch.lean` in the repo root — it's
 gitignored and checked live by the Lean editor extension (not part of any build).
