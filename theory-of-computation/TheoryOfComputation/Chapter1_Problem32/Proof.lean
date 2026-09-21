@@ -53,7 +53,7 @@ lemma adderDFA_step : adderDFA.step = dfaStep := rfl
 
 `run_invariant` peels the leading column, which is the run's first step, so the case
 where that step dies leaves a whole run still to evaluate. This lemma evaluates it. -/
-lemma evalFrom_dead (w : List Sigma3) : adderDFA.evalFrom .dead w = .dead := by
+lemma dead_state_is_sink (w : List Sigma3) : adderDFA.evalFrom .dead w = .dead := by
   induction w with
   | nil => rfl
   | cons column columns induction_hypothesis =>
@@ -75,8 +75,11 @@ lemma split_run (column : Sigma3) (columns : List Sigma3) (carryIn carryOut : Bo
   -- Unfold the run and peel off its first step, so that `cases` below can split on that step.
   simp only [RunEndsWithCarry, DFA.evalFrom_cons, adderDFA_step]
   cases dfaStep (.carry carryIn) column with
-  | dead => rw [evalFrom_dead]; simp
-  | carry carryMid => simp
+  | dead => 
+    rw [dead_state_is_sink]
+    simp
+  | carry c => 
+    simp only [DfaState.carry.injEq, exists_eq_left']
 
 /-- A binary addition equation splits into the equation for its least significant bit and
 the equation for the remaining higher bits, connected by an intermediate
