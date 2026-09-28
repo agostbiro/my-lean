@@ -17,7 +17,7 @@ side's most significant bit first convention, once, in `adderDFA_accepts_B_rever
 /-- One column is a correct carry step: the step from carry `carryIn` lands in carry
 `carryOut` exactly when `x + y + carryIn = z + 2 · carryOut`, the adder equation for a
 single column. -/
-lemma carry_step_correct (x y z carryIn carryOut : Bool) :
+lemma first_step_adds (x y z carryIn carryOut : Bool) :
     dfaStep (.carry carryIn) (x, y, z) = .carry carryOut ↔
       x.toNat + y.toNat + carryIn.toNat = z.toNat + 2 * carryOut.toNat := by
   -- Proof by exhaustion over the truth table that is constructed by chaining cases where each
@@ -81,6 +81,21 @@ lemma split_run (column : Sigma3) (columns : List Sigma3) (carryIn carryOut : Bo
   | carry c => 
     simp only [DfaState.carry.injEq, exists_eq_left']
 
+/-- The binary addition equation as a whole: the rows have least significant bits `x`, `y`
+and `z`, their remaining higher bits have values `a`, `b` and `d`, carry `carryIn` enters at
+the low end and `k` stands for the carry out term. -/
+def WholeRunAddition (x y z carryIn : Bool) (a b d k : Nat) : Prop :=
+  (x.toNat + 2 * a) + (y.toNat + 2 * b) + carryIn.toNat
+    = (z.toNat + 2 * d) + 2 * k
+
+/-- The binary addition equation split in two: the adder equation for the least significant
+bits `x`, `y` and `z`, and the addition equation for the remaining higher bits with values
+`a`, `b` and `d`, connected by an intermediate carry. -/
+def SplitRunAddition (x y z carryIn : Bool) (a b d k : Nat) : Prop :=
+  ∃ carryMid : Bool,
+    x.toNat + y.toNat + carryIn.toNat = z.toNat + 2 * carryMid.toNat ∧
+    a + b + carryMid.toNat = d + k
+
 /-- A binary addition equation splits into the equation for its least significant bit and
 the equation for the remaining higher bits, connected by an intermediate
 carry.
@@ -90,12 +105,11 @@ than the least significant bits is even, so when the least significant bit has t
 parity no `carryMid` satisfies the right-hand side — matching the run entering `dead` on the
 left. -/
 lemma least_significant_bit_split (x y z carryIn : Bool) (a b d k : Nat) :
-    (x.toNat + 2 * a) + (y.toNat + 2 * b) + carryIn.toNat
-        = (z.toNat + 2 * d) + 2 * k ↔
-      ∃ carryMid : Bool,
-        x.toNat + y.toNat + carryIn.toNat = z.toNat + 2 * carryMid.toNat ∧
-        a + b + carryMid.toNat = d + k := by
-  cases x <;> cases y <;> cases z <;> cases carryIn <;> simp <;> omega
+    WholeRunAddition x y z carryIn a b d k ↔
+      SplitRunAddition x y z carryIn a b d k := by
+  cases x <;> cases y <;> cases z <;> cases carryIn <;> 
+  simp [WholeRunAddition, SplitRunAddition] <;> 
+  omega
 
 /-- The little-endian word `wLE` is a correct binary addition with carry `carryIn`
 entering at the low end and carry `carryOut` leaving at the high end:
@@ -123,7 +137,7 @@ lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
     simp_rw [
       -- 2. Turn the first step of the DFA into arithmetic. This is the adder equation for a
       --    single column.
-      carry_step_correct,
+      first_step_adds,
       -- 3. Turn the run over the remaining columns into arithmetic using the induction
       --    hypothesis.
       induction_hypothesis
@@ -137,7 +151,7 @@ lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
     -- `2 * (carryOut.toNat * 2 ^ n)`. The `*`/`+` commutativity and associativity lemmas
     -- below let `simpa` match them up.
     -- `omega` can't finish instead: it doesn't handle the `∃ carryMid`.
-    simpa [Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm,
+    simpa [WholeRunAddition, SplitRunAddition, Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm,
       Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
         (least_significant_bit_split x y z carryIn
           (row1LE columnsLE)
