@@ -144,20 +144,21 @@ lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
     ]
     -- 4. On the arithmetic side, show that the equation for the whole word splits into the
     --    equation for the least significant bit and the equation for the remaining bits.
-    simp only [WordAddsWithCarry, row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ]
+    simp only [WordAddsWithCarry, row1LE_cons, row2LE_cons, row3LE_cons, List.length_cons, pow_succ']
     -- This is `least_significant_bit_split` with `k := carryOut.toNat * 2 ^ |columnsLE|`,
     -- but the two sides write the same number differently: the goal has
-    -- `carryOut.toNat * (2 ^ n * 2)` (from `pow_succ`), the lemma has
-    -- `2 * (carryOut.toNat * 2 ^ n)`. The `*`/`+` commutativity and associativity lemmas
-    -- below let `simpa` match them up.
+    -- `carryOut.toNat * (2 * 2 ^ n)` (from `pow_succ'`), the lemma has
+    -- `2 * (carryOut.toNat * 2 ^ n)`. `Nat.mul_left_comm` rewrites the first into the second.
     -- `omega` can't finish instead: it doesn't handle the `∃ carryMid`.
-    simpa [WholeRunAddition, SplitRunAddition, Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm,
-      Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
-        (least_significant_bit_split x y z carryIn
-          (row1LE columnsLE)
+    rw [Nat.mul_left_comm]
+    exact
+      Iff.symm
+        (least_significant_bit_split 
+          x y z carryIn 
+          (row1LE columnsLE) 
           (row2LE columnsLE)
-          (row3LE columnsLE)
-          (carryOut.toNat * 2 ^ columnsLE.length)).symm
+          (row3LE columnsLE) 
+          (carryOut.toNat * 2 ^ columnsLE.length))
 
 -- TODO factor out bookkeeping
 /-- The DFA recognizes the reverse of `B` 
