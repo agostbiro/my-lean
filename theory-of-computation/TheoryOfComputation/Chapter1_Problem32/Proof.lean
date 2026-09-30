@@ -114,7 +114,7 @@ lemma least_significant_bit_split (x y z carryIn : Bool) (a b d k : Nat) :
 /-- The little-endian word `wLE` is a correct binary addition with carry `carryIn`
 entering at the low end and carry `carryOut` leaving at the high end:
 `row1 + row2 + carryIn = row3 + carryOut · 2^|wLE|`. -/
-def WordAddsWithCarry (wLE : List Sigma3) (carryIn carryOut : Bool) : Prop :=
+def WordAddsWithCarry (carryIn : Bool) (wLE : List Sigma3) (carryOut : Bool) : Prop :=
   row1LE wLE + row2LE wLE + carryIn.toNat
     = row3LE wLE + carryOut.toNat * 2 ^ wLE.length
 
@@ -123,7 +123,7 @@ def WordAddsWithCarry (wLE : List Sigma3) (carryIn carryOut : Bool) : Prop :=
 -/
 lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
     RunEndsWithCarry carryIn wLE carryOut ↔ 
-      WordAddsWithCarry wLE carryIn carryOut := by
+      WordAddsWithCarry carryIn wLE carryOut := by
   induction wLE generalizing carryIn with
   | nil =>
     cases carryIn <;> cases carryOut <;>
@@ -167,14 +167,14 @@ lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
 theorem adderDFA_accepts_B_reverse : adderDFA.accepts = B.reverse := by
   -- Change the goal from "these two languages are the same" to "for an arbitrary word, the DFA accepts it iff it's in B.reverse".
   ext wLE
-  -- `run_invariant` states that `RunCarries carryIn wLE carryOut`, i.e. running the adder DFA over
+  -- `run_invariant` states that `RunEndsWithCarry carryIn wLE carryOut`, i.e. running the adder DFA over
   -- a little-endian word `wLE` from carry `carryIn` lands in state carry `carryOut`, holds exactly
-  -- when `AddsWithCarry wLE carryIn carryOut` holds, i.e.
+  -- when `WordAddsWithCarry carryIn wLE carryOut` holds, i.e.
   -- `row1 + row2 + carryIn = row3 + carryOut · 2^|wLE|`.
   -- Since we initialize it with `false, false`, the  invariant is "no carry in
   -- at the low end, no carry out at the high end".
   have invariant := run_invariant wLE false false
-  -- Unfold `AddsWithCarry` and, since the carries are zero, cancel the terms involving them from
+  -- Unfold `WordAddsWithCarry` and, since the carries are zero, cancel the terms involving them from
   -- the invariant's equation which becomes `row1 + row2 = row3`.
   simp only [WordAddsWithCarry, Bool.toNat_false, Nat.zero_mul, Nat.add_zero] at invariant
   -- Acceptance is by definition "the run from the start state ends in `carry false`".
@@ -182,9 +182,9 @@ theorem adderDFA_accepts_B_reverse : adderDFA.accepts = B.reverse := by
   -- Remember, the goal is `wLE ∈ adderDFA.accepts ↔ wLE ∈ B.reverse`. We need to show that both sides are equal.
   rw [
     -- First we massage the left side.
-    -- Replace `wLE ∈ adderDFA.accepts` with `RunCarries false wLE false`
+    -- Replace `wLE ∈ adderDFA.accepts` with `RunEndsWithCarry false wLE false`
     mem_accepts_iff,
-    -- Replace `RunCarries false wLE false` with 
+    -- Replace `RunEndsWithCarry false wLE false` with 
     -- `row1LE wLE + row2LE wLE = row3LE wLE`
     invariant,
 
