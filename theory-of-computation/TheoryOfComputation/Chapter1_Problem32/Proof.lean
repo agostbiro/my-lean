@@ -20,29 +20,10 @@ single column. -/
 lemma first_step_adds (x y z carryIn carryOut : Bool) :
     dfaStep (.carry carryIn) (x, y, z) = .carry carryOut ↔
       x.toNat + y.toNat + carryIn.toNat = z.toNat + 2 * carryOut.toNat := by
-  -- Proof by exhaustion over the truth table that is constructed by chaining cases where each
-  -- case is true or false.
-  cases x <;> cases y <;> cases z <;> cases carryIn <;> cases carryOut <;>
-    -- The simp tactic does a lot of have lifting here. It uses lemmas and hypothesis to simplify
-    -- the goal target for each case.
-    -- Consider the goal x=true, y=true, z=false, carryIn=false, carryOut=true.
-    -- Filling in the values results in:
-    --   dfaStep (.carry false) (true, true, false) = .carry true
-    --     ↔ true.toNat + true.toNat + false.toNat = false.toNat + 2 * true.toNat
-    -- Simp first rewrites the left-hand side of the equivalence to:
-    --   if false = (true ^^ true ^^ false) then .carry (Bool.atLeastTwo true true false) else .dead = .carry true
-    -- Then it performs boolean evaluation:
-    --   if false = false then .carry true else .dead. = .carry true
-    -- Which becomes
-    --   .carry true = .carry true
-    -- There is some further bookkeeping to done by simp for Lean to accept the above expression as
-    -- true, but we'll skip over that now and look at the right-hand side of the equivalance which
-    -- is relatively simple in comparison.
-    --   true.toNat + true.toNat + false.toNat = false.toNat + 2 * true.toNat
-    -- results in
-    --   1 + 1 + 0 = 0 + 2 * 1
-    -- which after some further steps will be resolved to true.
-    simp [dfaStep]
+  -- The statement is a closed formula over five booleans once the variables are moved back into
+  -- the goal, so `decide` can check all 32 rows of the truth table.
+  revert x y z carryIn carryOut
+  decide
 
 /-- The step function of `adderDFA` is `dfaStep`. Lets `simp` replace `adderDFA.step` with
 `dfaStep` without unfolding the whole `adderDFA` structure. -/
