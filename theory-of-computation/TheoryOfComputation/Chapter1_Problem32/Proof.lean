@@ -107,9 +107,11 @@ lemma run_invariant (wLE : List Sigma3) (carryIn carryOut : Bool) :
       WordAddsWithCarry carryIn wLE carryOut := by
   induction wLE generalizing carryIn with
   | nil =>
-    cases carryIn <;> cases carryOut <;>
-      simp [RunEndsWithCarry, WordAddsWithCarry, row1LE, row2LE, row3LE, valueLE, row1, row2, row3,
-        DFA.evalFrom]
+    -- Over the empty word both sides reduce to `carryIn = carryOut`. After unfolding the two
+    -- `Prop` definitions the statement is a closed formula over two booleans, so `decide` checks it.
+    unfold RunEndsWithCarry WordAddsWithCarry
+    revert carryIn carryOut
+    decide
   | cons column columnsLE induction_hypothesis =>
     obtain ⟨x, y, z⟩ := column
     -- 1. On the DFA side, split the run into its first step and the run over the remaining
