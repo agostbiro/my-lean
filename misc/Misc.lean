@@ -4,3 +4,4 @@ import Misc.BezoutIdentity
 import Misc.PartialFractions
 import Misc.Backprop
 import Misc.Perceptron
+import Misc.SequentCalculusEffects
