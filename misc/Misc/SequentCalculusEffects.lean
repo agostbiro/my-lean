@@ -39,7 +39,7 @@
     influence on the result; the modality states robustness of a particular
     property. The computer can change the guarded reactor's final valve
     positions while every outcome remains safe (`guarded_influenced`).
-    Conversely, a role can be asked by the program yet have no influence,
+    Conversely, a role can be asked by the protocol yet have no influence,
     because Γ rules out the paths that ask it (`operator_irrelevant`,
     `operator_matters`). No equivalence between effects, the modality and
     information-flow labels is proved here.
@@ -60,8 +60,8 @@
     not require enumerating attacks. `raw_not_robust` supplies one concrete
     strategy as a counterexample to the raw loop's robustness.
 
-    Capabilities are bounded jointly by the types and the program: `St`
-    describes observations, `Cmd` describes actions, and `Prog` fixes which
+    Capabilities are bounded jointly by the types and the protocol: `State`
+    describes observations, `Cmd` describes actions, and `Protocol` fixes which
     roles are asked and how their answers are used. Γ adds restrictions on
     answers within that language. It can fix a command per observation,
     exclude some commands (`noUCA`), or allow every command (`untrusted`).
@@ -74,7 +74,7 @@
 
   Judgment:   Γ ⊢ P : φ ! E
     Γ  = behavioral assumptions: which answers each role is permitted to give
-    P  = program (a tree of `ask` effects)
+    P  = protocol (a tree of `ask` effects)
     φ  = property of the final state
     E  = effect row: an upper bound on roles P may ask under Γ
 
@@ -88,17 +88,17 @@
   Components, by section:
 
     1. Syntax.
-       `Role`, `St` and `Cmd` are the controllers, the valve state and the
-       commands. `Prog` is a program: `ret s` ends with the state `s`, and
-       `ask A o k` shows the observation `o` to role `A` and continues with
-       `k` applied to the answer.
+       `Role`, `State` and `Cmd` are the controllers, the valve state and the
+       commands. A `Protocol` has two forms: `ret s` ends with the state `s`,
+       and `ask A o k` shows the observation `o` to role `A` and continues
+       with `k` applied to the answer.
 
     2. Semantics.
        A `Strategy` gives the answer of each role from its observation
-       history. `run` executes a program with a strategy and returns the
-       final state. `Assumptions` is the type of Γ. `Serial` says that Γ always
-       permits some answer, `Respects` says that a strategy stays inside Γ,
-       and `Box` is the modality □_Γ φ.
+       history. `run` executes a protocol with a strategy and returns the
+       final state. `Assumptions` is the type of Γ. `Satisfiable` says that
+       Γ always permits some answer, `Respects` says that a strategy stays
+       inside Γ, and `Box` is the modality □_Γ φ.
 
     3. Sequent calculus.
        `Deriv` is the judgment Γ ⊢ P : φ ! E, with one rule for `ret` and
@@ -112,19 +112,20 @@
     5. Reactor example.
        `hazard` and `safe` define the property. `apply` gives the effect of
        a command, `isUCA` marks the two unsafe commands, and `interlock`
-       replaces them with `skip`. `loop` asks the computer n times; `raw`
-       sends each answer to the valves, and `guarded` sends it through the
-       interlock first. `untrusted` and `noUCA` are the two choices of Γ.
-       `escalate` is a one-step program that can also ask the operator.
-       The theorems of results 1 to 3 above follow.
+       replaces them with `skip`. `loop` asks the computer n times;
+       `rawLoop` sends each answer to the valves, and `guardedLoop` sends it
+       through the interlock first. `untrusted` and `noUCA` are the two
+       choices of Γ. `escalate` is a one-step protocol that can also ask the
+       operator. The theorems of results 1 to 3 above follow. The section
+       ends with five concrete proof trees, each drawn above its Lean term.
 
     6. Limits of this demo.
 
   How the components connect:
 
-      P : Prog -----------+
+      P : Protocol -------+
                           | run
-      h : Strategy -------+------> final state : St
+      h : Strategy -------+------> final state : State
           ^                            |
           | Respects                   | φ holds for every h
           |                            | that respects Γ
@@ -150,14 +151,14 @@
 
 namespace Misc.SequentCalculusEffects
 
-/-! ## 1. Syntax: programs with one effect, `ask` -/
+/-! ## 1. Syntax: protocols with one effect, `ask` -/
 
 /-- The roles (controllers) in the control structure. -/
 inductive Role | computer | operator
   deriving DecidableEq, Repr
 
 /-- The state of the reactor: the positions of the two valves. -/
-structure St where
+structure State where
   /-- The water valve is open. -/
   water    : Bool
   /-- The catalyst valve is open. -/
@@ -168,20 +169,29 @@ structure St where
 inductive Cmd | openWater | closeWater | openCatalyst | closeCatalyst | skip
   deriving DecidableEq, Repr
 
-/-- A program asks roles for commands. The continuation `k` receives the answer.
-    The program does not say what the answer is: a handler supplies it. -/
-inductive Prog where
-  | ret : St → Prog
-  | ask : Role → St → (Cmd → Prog) → Prog
+/-- A protocol asks roles for commands. The continuation `k` receives the
+    answer. The protocol does not say what the answer is: a handler supplies
+    it.
+
+    Letters used in this file:
+    - `A`: the role that is asked.
+    - `o`: the observation, the state shown to `A`.
+    - `c`: a command, usually the answer of `A`.
+    - `k`: the continuation, the rest of the protocol for each answer.
+    - `s`: a state, such as the final state in `ret s`. -/
+inductive Protocol where
+  | ret : State → Protocol
+  | ask : Role → State → (Cmd → Protocol) → Protocol
 
 /-! ## 2. Semantics: handlers are strategies `Obs* → Action` -/
 
 /-- A deterministic, total strategy for every role, using its own observation
     history. Each function describes a possible behavior of that role. -/
-def Strategy := Role → List St → Cmd
+def Strategy := Role → List State → Cmd
 
-/-- Run a program with a handler. `hist r` = what role `r` has observed so far. -/
-def run (h : Strategy) (hist : Role → List St) : Prog → St
+/-- Run a protocol with a handler. `hist r` = what role `r` has observed so
+    far. -/
+def run (h : Strategy) (hist : Role → List State) : Protocol → State
   | .ret s => s
   | .ask A o k =>
     let hist' := fun r => if r = A then o :: hist r else hist r
@@ -190,13 +200,13 @@ def run (h : Strategy) (hist : Role → List St) : Prog → St
 /-- Behavioral assumptions Γ: `Γ A o c` = "role A may answer c when it observes o".
     Allowing every command models an untrusted role; allowing exactly one per
     observation fixes a policy based only on the current observation. Γ adds
-    restrictions within the capabilities provided by the types and program.
+    restrictions within the capabilities provided by the types and protocol.
     `Box` below quantifies over every strategy that respects these restrictions.
-    Γ should be `Serial`: otherwise no strategy respects it. -/
-def Assumptions := Role → St → Cmd → Prop
+    Γ should be `Satisfiable`: otherwise no strategy respects it. -/
+def Assumptions := Role → State → Cmd → Prop
 
 /-- Γ permits at least one command for every role and observation. -/
-def Serial (Γ : Assumptions) : Prop := ∀ A o, ∃ c, Γ A o c
+def Satisfiable (Γ : Assumptions) : Prop := ∀ A o, ∃ c, Γ A o c
 
 /-- The strategy `h` stays inside Γ: every answer of every role is one that
     Γ permits for the current observation. This covers all roles, histories
@@ -204,17 +214,18 @@ def Serial (Γ : Assumptions) : Prop := ∀ A o, ∃ c, Γ A o c
 def Respects (Γ : Assumptions) (h : Strategy) : Prop :=
   ∀ A hs o, Γ A o (h A (o :: hs))
 
-/-- A serial Γ is respected by some strategy, so `Box Γ` is not vacuous. -/
-theorem Serial.exists_respects {Γ : Assumptions} (hΓ : Serial Γ) : ∃ h, Respects Γ h :=
+/-- A satisfiable Γ is respected by some strategy, so `Box Γ` is not vacuous. -/
+theorem Satisfiable.exists_respects {Γ : Assumptions} (hΓ : Satisfiable Γ) : ∃ h, Respects Γ h :=
   ⟨fun A hs => match hs with
     | []     => .skip
     | o :: _ => Classical.choose (hΓ A o),
    fun A _ o => Classical.choose_spec (hΓ A o)⟩
 
 /-- The robustness modality □_Γ φ: the final state satisfies φ for every
-    strategy that Γ permits and every initial history. If Γ is not `Serial`,
-    no strategy respects it and `Box Γ φ P` holds for every φ and P. -/
-def Box (Γ : Assumptions) (φ : St → Prop) (P : Prog) : Prop :=
+    strategy that Γ permits and every initial history. If Γ is not
+    `Satisfiable`, no strategy respects it and `Box Γ φ P` holds for every φ
+    and P. -/
+def Box (Γ : Assumptions) (φ : State → Prop) (P : Protocol) : Prop :=
   ∀ h, Respects Γ h → ∀ hist, φ (run h hist P)
 
 /-! ## 3. The sequent calculus: two rules -/
@@ -223,30 +234,46 @@ def Box (Γ : Assumptions) (φ : St → Prop) (P : Prog) : Prop :=
 
     Deriv Γ E φ P is the claim that a proof tree exists for the judgment Γ ⊢ P : φ ! E.
 
+    ```
     Γ   ⊢   P : φ ! E
     |       |   |   +-- effect row: the roles that P can ask
     |       |   +------ property of the final state
-    |       +---------- program
+    |       +---------- protocol
     +------------------ assumptions: the answers that each role can give
+    ```
 
     The sequent says: if every role gives only answers that Γ permits, the
-    program `P` ends in a state that satisfies φ. It also says that `P` asks
+    protocol `P` ends in a state that satisfies φ. It also says that `P` asks
     only roles in E. -/
-inductive Deriv (Γ : Assumptions) (E : List Role) (φ : St → Prop) : Prog → Prop
+inductive Deriv (Γ : Assumptions) (E : List Role) (φ : State → Prop) : Protocol → Prop
   /-- ret:  φ s  ⟹  Γ ⊢ ret s : φ ! E -/
   | ret {s} : φ s → Deriv Γ E φ (.ret s)
   /-- ask (left rule for the effect): A ∈ E, and for every answer c that Γ permits,
-      Γ ⊢ k c : φ ! E  ⟹  Γ ⊢ ask A o k : φ ! E -/
+      Γ ⊢ k c : φ ! E  ⟹  Γ ⊢ ask A o k : φ ! E
+
+      ```
+        A ∈ E      for each c with Γ A o c:  Γ ⊢ k c : φ ! E
+       ------------------------------------------------------ ask
+                      Γ ⊢ ask A o k : φ ! E
+      ```
+
+      The conclusion, below the line, is the sequent for the protocol that
+      asks the role `A` and then continues with `k`. The first premise says
+      that the effect row E permits a question to `A`. The second premise is
+      the left-rule part: for each command `c` that Γ permits `A` to answer on
+      the observation `o`, the sequent holds for the rest of the protocol
+      `k c`. -/
   | ask {A o k} : A ∈ E → (∀ c, Γ A o c → Deriv Γ E φ (k c)) →
       Deriv Γ E φ (.ask A o k)
 
 /-- `Effects Γ E P`  ≈  Γ ⊢ P ! E: the effect row alone, with no claim about
     the final state. -/
-abbrev Effects (Γ : Assumptions) (E : List Role) : Prog → Prop := Deriv Γ E (fun _ => True)
+abbrev Effects (Γ : Assumptions) (E : List Role) : Protocol → Prop := Deriv Γ E (fun _ => True)
 
 /-! ## 4. Metatheory -/
 
-/-- Every derivation gives the effect judgment: drop the final property. -/
+/-- A proof tree for the sequent Γ ⊢ P : φ ! E gives a proof tree for the same
+    protocol with the same effect row and no claim about the final state. -/
 theorem Deriv.effects {Γ E φ P} (d : Deriv Γ E φ P) : Effects Γ E P := by
   induction d with
   | ret _ => exact .ret trivial
@@ -290,13 +317,13 @@ theorem irrelevant_of_not_mem {Γ E P} (d : Effects Γ E P) (B : Role) (hB : B �
 /-! ## 5. STPA-inspired example: chemical reactor -/
 
 /-- Hazard H: the catalyst valve is open while the water valve is closed. -/
-def hazard (s : St) : Bool := s.catalyst && !s.water
+def hazard (s : State) : Bool := s.catalyst && !s.water
 
 /-- A state is safe if it is not in the hazard. -/
-def safe (s : St) : Prop := hazard s = false
+def safe (s : State) : Prop := hazard s = false
 
 /-- The effect of a command on the state. -/
-def apply : Cmd → St → St
+def apply : Cmd → State → State
   | .openWater,     s => { s with water := true }
   | .closeWater,    s => { s with water := false }
   | .openCatalyst,  s => { s with catalyst := true }
@@ -306,24 +333,26 @@ def apply : Cmd → St → St
 /-- The two modeled UCAs (Unsafe Control Actions): opening the catalyst valve
     while the water valve is closed, and closing the water valve while the
     catalyst valve is open. -/
-def isUCA (s : St) : Cmd → Bool
+def isUCA (s : State) : Cmd → Bool
   | .openCatalyst => !s.water
   | .closeWater   => s.catalyst
   | _             => false
 
 /-- Trusted interlock: uses the actual valve state to block the two modeled UCAs. -/
-def interlock (s : St) (c : Cmd) : Cmd := if isUCA s c then .skip else c
+def interlock (s : State) (c : Cmd) : Cmd := if isUCA s c then .skip else c
 
-/-- n control steps. Each step asks the computer, then filters the command. -/
-def loop (filter : St → Cmd → Cmd) : Nat → St → Prog
+/-- `loop filter n s` is the protocol that starts in the state `s` and asks the
+    computer for a command `n` times, with each command sent through `filter`
+    before the valves get it. -/
+def loop (filter : State → Cmd → Cmd) : Nat → State → Protocol
   | 0,     s => .ret s
   | n + 1, s => .ask .computer s (fun c => loop filter n (apply (filter s c) s))
 
 /-- The control loop with no interlock: every command goes to the valves. -/
-def raw     := loop (fun _ c => c)
+def rawLoop     := loop (fun _ c => c)
 
 /-- The control loop with the interlock. -/
-def guarded := loop interlock
+def guardedLoop := loop interlock
 
 /-- No behavioral restrictions on any role. Every strategy in the chosen
     language respects these assumptions. The reactor loop asks only the
@@ -336,82 +365,82 @@ def noUCA : Assumptions := fun _ s c => isUCA s c = false
 
 /-! ### Proofs -/
 
-theorem untrusted_serial : Serial untrusted := fun _ _ => ⟨.skip, trivial⟩
+theorem untrusted_satisfiable : Satisfiable untrusted := fun _ _ => ⟨.skip, trivial⟩
 
-theorem noUCA_serial : Serial noUCA := fun _ _ => ⟨.skip, rfl⟩
+theorem noUCA_satisfiable : Satisfiable noUCA := fun _ _ => ⟨.skip, rfl⟩
 
 /-- Some strategy respects `untrusted`, so `Box untrusted` is not vacuous. -/
 theorem untrusted_respected : ∃ h, Respects untrusted h :=
-  untrusted_serial.exists_respects
+  untrusted_satisfiable.exists_respects
 
 /-- Some strategy respects `noUCA`, so `Box noUCA` and the `Respects noUCA`
     hypothesis of `operator_irrelevant` are not vacuous. -/
 theorem noUCA_respected : ∃ h, Respects noUCA h :=
-  noUCA_serial.exists_respects
+  noUCA_satisfiable.exists_respects
 
-theorem interlock_step (s : St) (c : Cmd) (hs : safe s) :
+theorem interlock_step (s : State) (c : Cmd) (hs : safe s) :
     safe (apply (interlock s c) s) := by
   cases s with
   | mk w k => cases w <;> cases k <;> cases c <;> simp_all [safe, hazard, apply, interlock, isUCA]
 
 /-- A loop preserves safety when each filtered step does, for every answer
     that Γ permits. -/
-theorem loop_deriv {Γ : Assumptions} {f : St → Cmd → Cmd}
+theorem loop_deriv {Γ : Assumptions} {f : State → Cmd → Cmd}
     (step : ∀ s c, safe s → Γ .computer s c → safe (apply (f s c) s)) :
     ∀ n s, safe s → Deriv Γ [.computer] safe (loop f n s)
   | 0,     _, hs => .ret hs
   | n + 1, s, hs => .ask (by simp) (fun c hc => loop_deriv step n _ (step s c hs hc))
 
 /-- Γ = untrusted ⊢ guarded n s : safe ! {computer} -/
-theorem guarded_deriv : ∀ n s, safe s → Deriv untrusted [.computer] safe (guarded n s) :=
+theorem guarded_deriv : ∀ n s, safe s → Deriv untrusted [.computer] safe (guardedLoop n s) :=
   loop_deriv fun s c hs _ => interlock_step s c hs
 
 /-- From a safe initial state, the trusted interlock preserves safety for every
     modeled computer strategy and any finite number of steps. -/
-theorem guarded_robust (n : Nat) (s : St) (hs : safe s) :
-    Box untrusted safe (guarded n s) :=
+theorem guarded_robust (n : Nat) (s : State) (hs : safe s) :
+    Box untrusted safe (guardedLoop n s) :=
   sound (guarded_deriv n s hs)
 
 /-- A raw command preserves safety when it satisfies the `noUCA` restrictions. -/
-theorem raw_step (s : St) (c : Cmd) (hs : safe s) (hc : noUCA .computer s c) :
+theorem raw_step (s : State) (c : Cmd) (hs : safe s) (hc : noUCA .computer s c) :
     safe (apply c s) := by
   have hc : isUCA s c = false := hc
   simpa [interlock, hc] using interlock_step s c hs
 
 /-- The raw loop preserves safety under the behavioral assumptions Γ = noUCA. -/
-theorem raw_deriv : ∀ n s, safe s → Deriv noUCA [.computer] safe (raw n s) :=
+theorem raw_deriv : ∀ n s, safe s → Deriv noUCA [.computer] safe (rawLoop n s) :=
   loop_deriv raw_step
 
 /-- Removing the behavioral restrictions makes the raw loop unsafe: the
     hand-written witness always requests `openCatalyst`. This is a concrete
     counterexample, not an assumption in Γ or an analysis of why the controller
     issues that command. -/
-theorem raw_not_robust : ¬ Box untrusted safe (raw 1 ⟨false, false⟩) := by
+theorem raw_not_robust : ¬ Box untrusted safe (rawLoop 1 ⟨false, false⟩) := by
   intro hBox
   have := hBox (fun _ _ => .openCatalyst) (fun _ _ _ => trivial) (fun _ => [])
-  simp [run, raw, loop, apply, safe, hazard] at this
+  simp [run, rawLoop, loop, apply, safe, hazard] at this
 
 /-- The computer influences the guarded loop: two strategies reach different
     final states, although both are safe by `guarded_robust`. The effect row
     bounds who can influence the result; the modality bounds what the result
     can be. -/
 theorem guarded_influenced :
-    run (fun _ _ => .openWater) (fun _ => []) (guarded 1 ⟨false, false⟩) ≠
-      run (fun _ _ => .skip) (fun _ => []) (guarded 1 ⟨false, false⟩) := by
-  simp [run, guarded, loop, interlock, isUCA, apply]
+    run (fun _ _ => .openWater) (fun _ => []) (guardedLoop 1 ⟨false, false⟩) ≠
+      run (fun _ _ => .skip) (fun _ => []) (guardedLoop 1 ⟨false, false⟩) := by
+  simp [run, guardedLoop, loop, interlock, isUCA, apply]
 
 /-- One step with escalation: a request to open the catalyst valve while the
     water valve is closed goes to the operator instead of the valves. -/
-def escalate (s : St) : Prog :=
+def escalate (s : State) : Protocol :=
   .ask .computer s fun c =>
     if c = .openCatalyst ∧ s.water = false then
       .ask .operator s fun d => .ret (apply d s)
     else .ret (apply c s)
 
 /-- Γ = noUCA ⊢ escalate s : φ ! {computer}, for every φ that holds after each
-    command that noUCA permits. The program can ask the operator, but only
+    command that noUCA permits. The protocol can ask the operator, but only
     after a command that noUCA excludes. -/
-theorem escalate_deriv_of {φ : St → Prop} (s : St)
+theorem escalate_deriv_of {φ : State → Prop} (s : State)
     (hφ : ∀ c, noUCA .computer s c → φ (apply c s)) :
     Deriv noUCA [.computer] φ (escalate s) :=
   .ask (by simp) fun c hc => by
@@ -422,20 +451,20 @@ theorem escalate_deriv_of {φ : St → Prop} (s : St)
     exact .ret (hφ c hc)
 
 /-- Γ = noUCA ⊢ escalate s : safe ! {computer}, from a safe state. -/
-theorem escalate_deriv (s : St) (hs : safe s) :
+theorem escalate_deriv (s : State) (hs : safe s) :
     Deriv noUCA [.computer] safe (escalate s) :=
   escalate_deriv_of s (raw_step s · hs)
 
 /-- Γ = noUCA ⊢ escalate s ! {computer}, from every state. -/
-theorem escalate_effects (s : St) : Effects noUCA [.computer] (escalate s) :=
+theorem escalate_effects (s : State) : Effects noUCA [.computer] (escalate s) :=
   escalate_deriv_of s fun _ _ => trivial
 
 /-- Under noUCA, the operator cannot change the result of `escalate`, even
-    though the program can ask it. The replacement operator strategy in `h`
+    though the protocol can ask it. The replacement operator strategy in `h`
     need not respect Γ. No safety assumption on `s` is needed: this uses only
     the effect judgment. It depends on Γ, not only on the syntax:
     see `operator_matters`. -/
-theorem operator_irrelevant (s : St) (h h' : Strategy)
+theorem operator_irrelevant (s : State) (h h' : Strategy)
     (hR' : Respects noUCA h') (agree : ∀ r, r ≠ .operator → h r = h' r) (hist) :
     run h hist (escalate s) = run h' hist (escalate s) :=
   irrelevant_of_not_mem (escalate_effects s) .operator (by simp) h h' hR' agree hist
@@ -448,15 +477,134 @@ theorem operator_matters :
         (fun _ => []) (escalate ⟨false, false⟩) := by
   simp [run, escalate, apply]
 
+/-! ### Concrete proof trees
+
+  Each example below is one proof tree, written as a Lean term, with the same
+  tree drawn above it. All of them start from the state `⟨false, false⟩`:
+  both valves are closed. The first four take one step, and the last one
+  takes two steps. A state `⟨w, k⟩` has the water valve `w` and the catalyst
+  valve `k`.
+
+  In each term, `.ask` is the root, `by simp` proves `computer ∈ [computer]`,
+  and the `match` has one arm for each answer `c` of the computer. `.ret rfl`
+  is a leaf: `rfl` proves that the final state is safe.
+-/
+
+/-- The raw loop under `noUCA`. Γ forbids `openCatalyst` while the water valve
+    is closed, so the tree needs no sub-tree for that answer. In the term,
+    `hc` is the claim that Γ permits the answer, and `nomatch hc` shows that
+    no such claim exists.
+
+    ```
+    noUCA ⊢ rawLoop 1 ⟨false, false⟩ : safe ! [computer]            by ask
+    +-- computer ∈ [computer]
+    +-- c = openWater      ⊢ ret ⟨true,  false⟩ : safe              by ret
+    +-- c = closeWater     ⊢ ret ⟨false, false⟩ : safe              by ret
+    +-- c = openCatalyst   no sub-tree: noUCA forbids this answer
+    +-- c = closeCatalyst  ⊢ ret ⟨false, false⟩ : safe              by ret
+    +-- c = skip           ⊢ ret ⟨false, false⟩ : safe              by ret
+    ``` -/
+example : Deriv noUCA [.computer] safe (rawLoop 1 ⟨false, false⟩) :=
+  .ask (by simp) fun c hc =>
+    match c, hc with
+    | .openWater,     _  => .ret rfl
+    | .closeWater,    _  => .ret rfl
+    | .openCatalyst,  hc => nomatch hc
+    | .closeCatalyst, _  => .ret rfl
+    | .skip,          _  => .ret rfl
+
+/-- The raw loop under `untrusted` has no proof tree. Γ permits
+    `openCatalyst`, and that answer leads to the hazard, so one leaf fails.
+
+    ```
+    untrusted ⊢ rawLoop 1 ⟨false, false⟩ : safe ! [computer]        by ask
+    +-- computer ∈ [computer]
+    +-- c = openWater      ⊢ ret ⟨true,  false⟩ : safe              by ret
+    +-- c = closeWater     ⊢ ret ⟨false, false⟩ : safe              by ret
+    +-- c = openCatalyst   ⊢ ret ⟨false, true⟩  : safe              fails: hazard
+    +-- c = closeCatalyst  ⊢ ret ⟨false, false⟩ : safe              by ret
+    +-- c = skip           ⊢ ret ⟨false, false⟩ : safe              by ret
+    ``` -/
+example : ¬ Deriv untrusted [.computer] safe (rawLoop 1 ⟨false, false⟩) :=
+  fun d => raw_not_robust (sound d)
+
+/-- `escalate` under `noUCA`. The answer `openCatalyst` is the only one that
+    leads to a question for the operator, and Γ forbids it. So the tree asks
+    only the computer, and the effect row is `[computer]`.
+
+    ```
+    noUCA ⊢ escalate ⟨false, false⟩ : safe ! [computer]             by ask
+    +-- computer ∈ [computer]
+    +-- c = openWater      ⊢ ret ⟨true,  false⟩ : safe              by ret
+    +-- c = closeWater     ⊢ ret ⟨false, false⟩ : safe              by ret
+    +-- c = openCatalyst   no sub-tree: noUCA forbids this answer
+    |                      (the only branch with `ask operator`)
+    +-- c = closeCatalyst  ⊢ ret ⟨false, false⟩ : safe              by ret
+    +-- c = skip           ⊢ ret ⟨false, false⟩ : safe              by ret
+    ``` -/
+example : Deriv noUCA [.computer] safe (escalate ⟨false, false⟩) :=
+  .ask (by simp) fun c hc =>
+    match c, hc with
+    | .openWater,     _  => .ret rfl
+    | .closeWater,    _  => .ret rfl
+    | .openCatalyst,  hc => nomatch hc
+    | .closeCatalyst, _  => .ret rfl
+    | .skip,          _  => .ret rfl
+
+/-- The guarded loop under `untrusted`, with two steps. The tree has depth 2:
+    each first answer `c₁` leads to a sub-tree for one more step. After
+    `openWater` the state is `⟨true, false⟩`. After each of the other four
+    answers the state is still `⟨false, false⟩`, so those four share one
+    sub-tree.
+
+    ```
+    untrusted ⊢ guardedLoop 2 ⟨false, false⟩ : safe ! [computer]    by ask
+    +-- computer ∈ [computer]
+    +-- c₁ = openWater      ⊢ guardedLoop 1 ⟨true, false⟩ : safe    by ask
+    |   +-- computer ∈ [computer]
+    |   +-- c₂ = openWater      ⊢ ret ⟨true,  false⟩ : safe         by ret
+    |   +-- c₂ = closeWater     ⊢ ret ⟨false, false⟩ : safe         by ret
+    |   +-- c₂ = openCatalyst   ⊢ ret ⟨true,  true⟩  : safe         by ret
+    |   +-- c₂ = closeCatalyst  ⊢ ret ⟨true,  false⟩ : safe         by ret
+    |   +-- c₂ = skip           ⊢ ret ⟨true,  false⟩ : safe         by ret
+    +-- c₁ = closeWater, openCatalyst, closeCatalyst or skip
+        ⊢ guardedLoop 1 ⟨false, false⟩ : safe                       by ask
+        +-- computer ∈ [computer]
+        +-- c₂ = openWater      ⊢ ret ⟨true,  false⟩ : safe         by ret
+        +-- c₂ = closeWater     ⊢ ret ⟨false, false⟩ : safe         by ret
+        +-- c₂ = openCatalyst   ⊢ ret ⟨false, false⟩ : safe         by ret
+        +-- c₂ = closeCatalyst  ⊢ ret ⟨false, false⟩ : safe         by ret
+        +-- c₂ = skip           ⊢ ret ⟨false, false⟩ : safe         by ret
+    ``` -/
+example : Deriv untrusted [.computer] safe (guardedLoop 2 ⟨false, false⟩) :=
+  .ask (by simp) fun c₁ _ =>
+    match c₁ with
+    | .openWater =>
+      .ask (by simp) fun c₂ _ =>
+        match c₂ with
+        | .openWater     => .ret rfl
+        | .closeWater    => .ret rfl
+        | .openCatalyst  => .ret rfl
+        | .closeCatalyst => .ret rfl
+        | .skip          => .ret rfl
+    | .closeWater | .openCatalyst | .closeCatalyst | .skip =>
+      .ask (by simp) fun c₂ _ =>
+        match c₂ with
+        | .openWater     => .ret rfl
+        | .closeWater    => .ret rfl
+        | .openCatalyst  => .ret rfl
+        | .closeCatalyst => .ret rfl
+        | .skip          => .ret rfl
+
 /-! ## 6. Limits of this demo
 
   This file is a minimal demo. It does not model these items:
 
   1. Choreographies and EPP (Endpoint Projection).
-     There is only one global program. A real version starts from a
+     There is only one global protocol. A real version starts from a
      choreography and uses EPP to get `Obs A` and `Action A` for each role.
      The strategy space 𝒢_A = (Obs A)* → Action A then comes from EPP.
-     Here, `Obs` is the full state `St` for every role, and `Action` is
+     Here, `Obs` is the full state `State` for every role, and `Action` is
      the same type `Cmd` for every role.
 
   2. Effect algebra.
@@ -472,7 +620,7 @@ theorem operator_matters :
   4. Additional communication and probabilistic strategies.
      A `Strategy` gives each role a function of its own history, but `Box`
      quantifies over all permitted combinations, including coordinated
-     policies. Programs can relay signals through subsequent observations.
+     policies. Protocols can relay signals through subsequent observations.
      The model omits access to other roles' histories or shared mutable state
      beyond those observations, additional communication channels, and
      probabilistic semantics for randomized strategies. Code-based collusion
@@ -484,7 +632,7 @@ theorem operator_matters :
      state limits on the history (for example "at most k bad commands"),
      on time, or on the number of compromised roles ("at most f of n").
      Γ is not printed as a list of named hypotheses in a certificate.
-     Types and program structure bound the available observations, commands
+     Types and protocol structure bound the available observations, commands
      and interactions; Γ only restricts answers within those bounds. Additional
      channels or ways to bypass the loop would require extending the model.
 
