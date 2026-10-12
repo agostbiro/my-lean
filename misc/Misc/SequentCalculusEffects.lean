@@ -22,7 +22,7 @@
        permits. A derivation therefore proves □_Γ φ: the final property φ
        holds for every permitted strategy, including ones that use history.
 
-    2. Effect row → bound on influence (`frame`).
+    2. Effect row → bound on influence (`irrelevant_of_not_mem`).
        Starting from a strategy profile that respects Γ, changing only a
        role outside E cannot change the result, with initial histories fixed.
        E is an information-flow label in this limited sense. There is no
@@ -85,6 +85,66 @@
     slides 33–34 (causal analysis) and 36–56 (reactor). MIT OpenCourseWare:
     https://ocw.mit.edu/courses/16-63j-system-safety-spring-2016/resources/mit16_63js16_lecnotes10/
 
+  Components, by section:
+
+    1. Syntax.
+       `Role`, `St` and `Cmd` are the controllers, the valve state and the
+       commands. `Prog` is a program: `ret s` ends with the state `s`, and
+       `ask A o k` shows the observation `o` to role `A` and continues with
+       `k` applied to the answer.
+
+    2. Semantics.
+       A `Strategy` gives the answer of each role from its observation
+       history. `run` executes a program with a strategy and returns the
+       final state. `Assumptions` is the type of Γ. `Serial` says that Γ always
+       permits some answer, `Respects` says that a strategy stays inside Γ,
+       and `Box` is the modality □_Γ φ.
+
+    3. Sequent calculus.
+       `Deriv` is the judgment Γ ⊢ P : φ ! E, with one rule for `ret` and
+       one for `ask`. `Effects` is the same judgment with a trivial φ, so
+       it states the effect row only.
+
+    4. Metatheory.
+       `sound` turns a derivation into `Box`. `irrelevant_of_not_mem` shows
+       that a role outside E cannot change the result.
+
+    5. Reactor example.
+       `hazard` and `safe` define the property. `apply` gives the effect of
+       a command, `isUCA` marks the two unsafe commands, and `interlock`
+       replaces them with `skip`. `loop` asks the computer n times; `raw`
+       sends each answer to the valves, and `guarded` sends it through the
+       interlock first. `untrusted` and `noUCA` are the two choices of Γ.
+       `escalate` is a one-step program that can also ask the operator.
+       The theorems of results 1 to 3 above follow.
+
+    6. Limits of this demo.
+
+  How the components connect:
+
+      P : Prog -----------+
+                          | run
+      h : Strategy -------+------> final state : St
+          ^                            |
+          | Respects                   | φ holds for every h
+          |                            | that respects Γ
+      Γ : Assumptions                  v
+                                   Box Γ φ P
+                                       ^
+                                       | sound
+      Deriv Γ E φ P -------------------+
+          |
+          | Deriv.effects
+          v
+      Effects Γ E P -- irrelevant_of_not_mem --> a role outside E cannot
+                                                 change the result of `run`
+
+    The top half is the semantics (sections 1 and 2). The bottom half is the
+    proof system (sections 3 and 4). In the example (section 5), `loop_deriv`
+    builds the derivations `raw_deriv` (Γ = `noUCA`) and `guarded_deriv`
+    (Γ = `untrusted`). `sound` then gives `guarded_robust`, and
+    `irrelevant_of_not_mem` gives `operator_irrelevant`.
+
   See section 6 for the limits of this demo.
 -/
 
@@ -133,19 +193,19 @@ def run (h : Strategy) (hist : Role → List St) : Prog → St
     restrictions within the capabilities provided by the types and program.
     `Box` below quantifies over every strategy that respects these restrictions.
     Γ should be `Serial`: otherwise no strategy respects it. -/
-def Model := Role → St → Cmd → Prop
+def Assumptions := Role → St → Cmd → Prop
 
 /-- Γ permits at least one command for every role and observation. -/
-def Serial (Γ : Model) : Prop := ∀ A o, ∃ c, Γ A o c
+def Serial (Γ : Assumptions) : Prop := ∀ A o, ∃ c, Γ A o c
 
 /-- The strategy `h` stays inside Γ: every answer of every role is one that
     Γ permits for the current observation. This covers all roles, histories
     and observations, including ones that no run reaches. -/
-def Respects (Γ : Model) (h : Strategy) : Prop :=
+def Respects (Γ : Assumptions) (h : Strategy) : Prop :=
   ∀ A hs o, Γ A o (h A (o :: hs))
 
 /-- A serial Γ is respected by some strategy, so `Box Γ` is not vacuous. -/
-theorem Serial.exists_respects {Γ : Model} (hΓ : Serial Γ) : ∃ h, Respects Γ h :=
+theorem Serial.exists_respects {Γ : Assumptions} (hΓ : Serial Γ) : ∃ h, Respects Γ h :=
   ⟨fun A hs => match hs with
     | []     => .skip
     | o :: _ => Classical.choose (hΓ A o),
@@ -154,13 +214,25 @@ theorem Serial.exists_respects {Γ : Model} (hΓ : Serial Γ) : ∃ h, Respects 
 /-- The robustness modality □_Γ φ: the final state satisfies φ for every
     strategy that Γ permits and every initial history. If Γ is not `Serial`,
     no strategy respects it and `Box Γ φ P` holds for every φ and P. -/
-def Box (Γ : Model) (φ : St → Prop) (P : Prog) : Prop :=
+def Box (Γ : Assumptions) (φ : St → Prop) (P : Prog) : Prop :=
   ∀ h, Respects Γ h → ∀ hist, φ (run h hist P)
 
 /-! ## 3. The sequent calculus: two rules -/
 
-/-- `Deriv Γ E φ P`  ≈  Γ ⊢ P : φ ! E -/
-inductive Deriv (Γ : Model) (E : List Role) (φ : St → Prop) : Prog → Prop
+/-- `Deriv Γ E φ P`  ≈  Γ ⊢ P : φ ! E
+
+    Deriv Γ E φ P is the claim that a proof tree exists for the judgment Γ ⊢ P : φ ! E.
+
+    Γ   ⊢   P : φ ! E
+    |       |   |   +-- effect row: the roles that P can ask
+    |       |   +------ property of the final state
+    |       +---------- program
+    +------------------ assumptions: the answers that each role can give
+
+    The sequent says: if every role gives only answers that Γ permits, the
+    program `P` ends in a state that satisfies φ. It also says that `P` asks
+    only roles in E. -/
+inductive Deriv (Γ : Assumptions) (E : List Role) (φ : St → Prop) : Prog → Prop
   /-- ret:  φ s  ⟹  Γ ⊢ ret s : φ ! E -/
   | ret {s} : φ s → Deriv Γ E φ (.ret s)
   /-- ask (left rule for the effect): A ∈ E, and for every answer c that Γ permits,
@@ -170,7 +242,7 @@ inductive Deriv (Γ : Model) (E : List Role) (φ : St → Prop) : Prog → Prop
 
 /-- `Effects Γ E P`  ≈  Γ ⊢ P ! E: the effect row alone, with no claim about
     the final state. -/
-abbrev Effects (Γ : Model) (E : List Role) : Prog → Prop := Deriv Γ E (fun _ => True)
+abbrev Effects (Γ : Assumptions) (E : List Role) : Prog → Prop := Deriv Γ E (fun _ => True)
 
 /-! ## 4. Metatheory -/
 
@@ -180,8 +252,8 @@ theorem Deriv.effects {Γ E φ P} (d : Deriv Γ E φ P) : Effects Γ E P := by
   | ret _ => exact .ret trivial
   | ask hA _ ih => exact .ask hA ih
 
-/-- Soundness: a derivation establishes the final property for all permitted
-    handlers, giving the robustness modality. -/
+/-- Soundness: if the sequent Γ ⊢ P : φ ! E has a proof tree, then φ holds for
+    the final state of `P` under every strategy that respects Γ. -/
 theorem sound {Γ E φ P} (d : Deriv Γ E φ P) : Box Γ φ P := by
   intro h hR
   induction d with
@@ -193,11 +265,18 @@ theorem sound {Γ E φ P} (d : Deriv Γ E φ P) : Box Γ φ P := by
     have := hR A (hist A) o
     simpa using this
 
-/-- Effect rows bound influence: with initial histories fixed, changing only a
-    role outside E from a strategy profile `h'` that respects Γ leaves the
-    result unchanged. No restriction on that role's replacement is needed.
-    Only the effect judgment is used: apply `Deriv.effects` to a derivation. -/
-theorem frame {Γ E P} (d : Effects Γ E P) (B : Role) (hB : B ∉ E)
+/-- Effect rows bound influence: if the role `B` is not in the effect row E of
+    `P`, a change to the strategy of `B` alone does not change the final state
+    of `P`.
+
+    The name reads: `B` is irrelevant to the result, if `B` is not a member
+    of E. "mem" is short for membership (`∈`), so `not_mem` is `hB : B ∉ E`.
+
+    - The initial histories are the same in both runs.
+    - Only `h'` must respect Γ. The replacement strategy of `B` in `h` has no
+      restriction.
+    - Only the effect judgment is used: apply `Deriv.effects` to a derivation. -/
+theorem irrelevant_of_not_mem {Γ E P} (d : Effects Γ E P) (B : Role) (hB : B ∉ E)
     (h h' : Strategy) (hR' : Respects Γ h') (agree : ∀ r, r ≠ B → h r = h' r) :
     ∀ hist, run h hist P = run h' hist P := by
   induction d with
@@ -247,12 +326,13 @@ def raw     := loop (fun _ c => c)
 def guarded := loop interlock
 
 /-- No behavioral restrictions on any role. Every strategy in the chosen
-    language respects this model. The reactor loop asks only the computer. -/
-def untrusted : Model := fun _ _ _ => True
+    language respects these assumptions. The reactor loop asks only the
+    computer. -/
+def untrusted : Assumptions := fun _ _ _ => True
 
 /-- Behavioral assumption: every role avoids the two modeled UCAs.
     This encodes constraints used by the example, not the STPA methodology. -/
-def noUCA : Model := fun _ s c => isUCA s c = false
+def noUCA : Assumptions := fun _ s c => isUCA s c = false
 
 /-! ### Proofs -/
 
@@ -276,7 +356,7 @@ theorem interlock_step (s : St) (c : Cmd) (hs : safe s) :
 
 /-- A loop preserves safety when each filtered step does, for every answer
     that Γ permits. -/
-theorem loop_deriv {Γ : Model} {f : St → Cmd → Cmd}
+theorem loop_deriv {Γ : Assumptions} {f : St → Cmd → Cmd}
     (step : ∀ s c, safe s → Γ .computer s c → safe (apply (f s c) s)) :
     ∀ n s, safe s → Deriv Γ [.computer] safe (loop f n s)
   | 0,     _, hs => .ret hs
@@ -358,7 +438,7 @@ theorem escalate_effects (s : St) : Effects noUCA [.computer] (escalate s) :=
 theorem operator_irrelevant (s : St) (h h' : Strategy)
     (hR' : Respects noUCA h') (agree : ∀ r, r ≠ .operator → h r = h' r) (hist) :
     run h hist (escalate s) = run h' hist (escalate s) :=
-  frame (escalate_effects s) .operator (by simp) h h' hR' agree hist
+  irrelevant_of_not_mem (escalate_effects s) .operator (by simp) h h' hR' agree hist
 
 /-- Without the noUCA restriction on the computer, the operator does change
     the result of `escalate`. -/
