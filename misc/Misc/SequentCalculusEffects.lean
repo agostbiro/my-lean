@@ -114,10 +114,13 @@
        a command, `isUCA` marks the two unsafe commands, and `interlock`
        replaces them with `skip`. `loop` asks the computer n times;
        `rawLoop` sends each answer to the valves, and `guardedLoop` sends it
-       through the interlock first. `untrusted` and `noUCA` are the two
-       choices of Γ. `escalate` is a one-step protocol that can also ask the
-       operator. The theorems of results 1 to 3 above follow. The section
-       ends with five concrete proof trees, each drawn above its Lean term.
+       through the interlock first. The choices of Γ are `untrusted`,
+       `noUCA`, and `operatorNoUCA`, which restricts only the operator.
+       `escalate` is a one-step protocol that sends each UCA request to the
+       operator. The theorems of results 1 to 3 above follow, and
+       `escalate_robust` shows safety with an untrusted computer. The
+       section ends with five concrete proof trees, each drawn above its
+       Lean term.
 
     6. Limits of this demo.
 
@@ -363,11 +366,18 @@ def untrusted : Assumptions := fun _ _ _ => True
     This encodes constraints used by the example, not the STPA methodology. -/
 def noUCA : Assumptions := fun _ s c => isUCA s c = false
 
+/-- Mixed behavioral assumption: the operator avoids the two modeled UCAs, and
+    the computer has no restriction. -/
+def operatorNoUCA : Assumptions := fun r s c => r = .operator → isUCA s c = false
+
 /-! ### Proofs -/
 
 theorem untrusted_satisfiable : Satisfiable untrusted := fun _ _ => ⟨.skip, trivial⟩
 
 theorem noUCA_satisfiable : Satisfiable noUCA := fun _ _ => ⟨.skip, rfl⟩
+
+theorem operatorNoUCA_satisfiable : Satisfiable operatorNoUCA :=
+  fun _ _ => ⟨.skip, fun _ => rfl⟩
 
 /-- Some strategy respects `untrusted`, so `Box untrusted` is not vacuous. -/
 theorem untrusted_respected : ∃ h, Respects untrusted h :=
@@ -429,11 +439,12 @@ theorem guarded_influenced :
       run (fun _ _ => .skip) (fun _ => []) (guardedLoop 1 ⟨false, false⟩) := by
   simp [run, guardedLoop, loop, interlock, isUCA, apply]
 
-/-- One step with escalation: a request to open the catalyst valve while the
-    water valve is closed goes to the operator instead of the valves. -/
+/-- One step protocol with escalation: a request for one of the two modeled
+    UCAs goes to the operator instead of the valves. The operator then gives
+    the command for the valves. -/
 def escalate (s : State) : Protocol :=
   .ask .computer s fun c =>
-    if c = .openCatalyst ∧ s.water = false then
+    if isUCA s c then
       .ask .operator s fun d => .ret (apply d s)
     else .ret (apply c s)
 
@@ -444,10 +455,8 @@ theorem escalate_deriv_of {φ : State → Prop} (s : State)
     (hφ : ∀ c, noUCA .computer s c → φ (apply c s)) :
     Deriv noUCA [.computer] φ (escalate s) :=
   .ask (by simp) fun c hc => by
-    have hc' : ¬ (c = .openCatalyst ∧ s.water = false) := by
-      rintro ⟨rfl, hw⟩
-      simp [noUCA, isUCA, hw] at hc
-    simp only [if_neg hc']
+    have hc' : isUCA s c = false := hc
+    simp only [hc', Bool.false_eq_true, if_false]
     exact .ret (hφ c hc)
 
 /-- Γ = noUCA ⊢ escalate s : safe ! {computer}, from a safe state. -/
@@ -469,25 +478,49 @@ theorem operator_irrelevant (s : State) (h h' : Strategy)
     run h hist (escalate s) = run h' hist (escalate s) :=
   irrelevant_of_not_mem (escalate_effects s) .operator (by simp) h h' hR' agree hist
 
-/-- Without the noUCA restriction on the computer, the operator does change
-    the result of `escalate`. -/
+/-- From the state with the two valves closed, two strategies that differ only
+    in the answer of the operator give two different final states of
+    `escalate`. -/
 theorem operator_matters :
     run (fun _ _ => .openCatalyst) (fun _ => []) (escalate ⟨false, false⟩) ≠
       run (fun r _ => if r = .operator then .closeCatalyst else .openCatalyst)
         (fun _ => []) (escalate ⟨false, false⟩) := by
-  simp [run, escalate, apply]
+  simp [run, escalate, isUCA, apply]
+
+/-- Γ = operatorNoUCA ⊢ escalate s : safe ! {computer, operator}, from a safe
+    state. The computer has no restriction. If the computer requests a UCA,
+    the protocol asks the operator, and the operator avoids the UCAs. If the
+    computer requests another command, that command is safe to apply. -/
+theorem escalate_deriv_operatorNoUCA (s : State) (hs : safe s) :
+    Deriv operatorNoUCA [.computer, .operator] safe (escalate s) :=
+  .ask (by simp) fun c _ => by
+    cases h : isUCA s c
+    · simp only [Bool.false_eq_true, if_false]
+      exact .ret (raw_step s c hs h)
+    · simp only [if_true]
+      exact .ask (by simp) fun d hd => .ret (raw_step s d hs (hd rfl))
+
+/-- From a safe state, `escalate` is safe for every computer strategy, if the
+    operator avoids the two modeled UCAs. Here the operator does the work of
+    the interlock: the assumption on the computer in `escalate_deriv` moves
+    to the operator. -/
+theorem escalate_robust (s : State) (hs : safe s) :
+    Box operatorNoUCA safe (escalate s) :=
+  sound (escalate_deriv_operatorNoUCA s hs)
 
 /-! ### Concrete proof trees
 
   Each example below is one proof tree, written as a Lean term, with the same
   tree drawn above it. All of them start from the state `⟨false, false⟩`:
-  both valves are closed. The first four take one step, and the last one
-  takes two steps. A state `⟨w, k⟩` has the water valve `w` and the catalyst
-  valve `k`.
+  both valves are closed. The first three have one question on each path,
+  and the last two have a tree of depth 2. A state `⟨w, k⟩` has the water
+  valve `w` and the catalyst valve `k`.
 
-  In each term, `.ask` is the root, `by simp` proves `computer ∈ [computer]`,
-  and the `match` has one arm for each answer `c` of the computer. `.ret rfl`
-  is a leaf: `rfl` proves that the final state is safe.
+  In each term, `.ask` is the root, `by simp` proves that the asked role is
+  in the effect row, and the `match` has one arm for each answer `c` of the
+  computer. `.ret rfl` is a leaf: `rfl` proves that the final state is safe.
+  `nomatch` marks an answer that Γ forbids, so the tree needs no sub-tree
+  for it.
 -/
 
 /-- The raw loop under `noUCA`. Γ forbids `openCatalyst` while the water valve
@@ -528,9 +561,10 @@ example : Deriv noUCA [.computer] safe (rawLoop 1 ⟨false, false⟩) :=
 example : ¬ Deriv untrusted [.computer] safe (rawLoop 1 ⟨false, false⟩) :=
   fun d => raw_not_robust (sound d)
 
-/-- `escalate` under `noUCA`. The answer `openCatalyst` is the only one that
-    leads to a question for the operator, and Γ forbids it. So the tree asks
-    only the computer, and the effect row is `[computer]`.
+/-- `escalate` under `noUCA`. From this state, `openCatalyst` is the only UCA,
+    so it is the only answer that leads to a question for the operator, and Γ
+    forbids it. So the tree asks only the computer, and the effect row is
+    `[computer]`.
 
     ```
     noUCA ⊢ escalate ⟨false, false⟩ : safe ! [computer]             by ask
@@ -550,6 +584,45 @@ example : Deriv noUCA [.computer] safe (escalate ⟨false, false⟩) :=
     | .openCatalyst,  hc => nomatch hc
     | .closeCatalyst, _  => .ret rfl
     | .skip,          _  => .ret rfl
+
+/-- `escalate` under `operatorNoUCA`. Γ puts no restriction on the computer,
+    so the tree needs a sub-tree for `openCatalyst`. That sub-tree is a
+    question to the operator, so the operator is in the effect row. Γ forbids
+    the answer `openCatalyst` of the operator while the water valve is closed,
+    so the sub-tree has four leaves, and each of them is safe. In the term,
+    `hd rfl` is the claim that Γ permits the answer of the operator.
+
+    ```
+    operatorNoUCA ⊢ escalate ⟨false, false⟩ : safe ! [computer, operator]
+                                                                    by ask
+    +-- computer ∈ [computer, operator]
+    +-- c = openWater      ⊢ ret ⟨true,  false⟩ : safe              by ret
+    +-- c = closeWater     ⊢ ret ⟨false, false⟩ : safe              by ret
+    +-- c = openCatalyst   ⊢ ask operator ⟨false, false⟩ ... : safe by ask
+    |   +-- operator ∈ [computer, operator]
+    |   +-- d = openWater      ⊢ ret ⟨true,  false⟩ : safe          by ret
+    |   +-- d = closeWater     ⊢ ret ⟨false, false⟩ : safe          by ret
+    |   +-- d = openCatalyst   no sub-tree: operatorNoUCA forbids this answer
+    |   +-- d = closeCatalyst  ⊢ ret ⟨false, false⟩ : safe          by ret
+    |   +-- d = skip           ⊢ ret ⟨false, false⟩ : safe          by ret
+    +-- c = closeCatalyst  ⊢ ret ⟨false, false⟩ : safe              by ret
+    +-- c = skip           ⊢ ret ⟨false, false⟩ : safe              by ret
+    ``` -/
+example : Deriv operatorNoUCA [.computer, .operator] safe (escalate ⟨false, false⟩) :=
+  .ask (by simp) fun c _ =>
+    match c with
+    | .openWater     => .ret rfl
+    | .closeWater    => .ret rfl
+    | .openCatalyst  =>
+      .ask (by simp) fun d hd =>
+        match d, hd with
+        | .openWater,     _  => .ret rfl
+        | .closeWater,    _  => .ret rfl
+        | .openCatalyst,  hd => nomatch hd rfl
+        | .closeCatalyst, _  => .ret rfl
+        | .skip,          _  => .ret rfl
+    | .closeCatalyst => .ret rfl
+    | .skip          => .ret rfl
 
 /-- The guarded loop under `untrusted`, with two steps. The tree has depth 2:
     each first answer `c₁` leads to a sub-tree for one more step. After
