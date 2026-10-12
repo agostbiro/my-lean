@@ -285,13 +285,31 @@ theorem Deriv.effects {Γ E φ P} (d : Deriv Γ E φ P) : Effects Γ E P := by
 /-- Soundness: if the sequent Γ ⊢ P : φ ! E has a proof tree, then φ holds for
     the final state of `P` under every strategy that respects Γ. -/
 theorem sound {Γ E φ P} (d : Deriv Γ E φ P) : Box Γ φ P := by
+  -- 1. Fix a strategy `h` that respects Γ. The history stays under a `∀`,
+  --    because `run` changes the history at each `ask` node.
   intro h hR
+  -- 2. Induction on the proof tree `d`, with one case for each rule.
   induction d with
+  -- 3. Case `ret`: the run stops at the state `s`, and the tree holds a proof
+  --    of `φ s`.
   | ret hφ => intro _; exact hφ
   | @ask A o k _ _ ih =>
+    -- 4. Case `ask`: unfold one step of `run`, then apply the induction
+    --    hypothesis to the answer of `h`.
+    --
+    --    The induction hypothesis `ih` exists only in this case, because only
+    --    the `ask` rule has subtrees. It says that the claim holds for each
+    --    subtree `k c`: if Γ permits the answer `c`, then φ holds for the
+    --    final state of `k c` from every history.
+    --
+    --      ih : ∀ c, Γ A o c → ∀ hist, φ (run h hist (k c))
+    --
+    --    Lean makes `ih` from the second premise of the `ask` rule, which
+    --    gives a proof tree for each such `k c`.
     intro hist
     simp only [run]
     apply ih
+    -- 5. Γ permits this answer, because `h` respects Γ.
     have := hR A (hist A) o
     simpa using this
 
